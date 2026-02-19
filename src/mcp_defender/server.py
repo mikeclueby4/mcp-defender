@@ -26,7 +26,9 @@ DEFENDER_SCOPE = "https://api.securitycenter.microsoft.com/.default"
 _credential: CertificateCredential | ClientSecretCredential | None = None
 
 
-def get_credential() -> CertificateCredential | ClientSecretCredential:
+from azure.identity import AzureCliCredential, CertificateCredential, ClientSecretCredential
+
+def get_credential() -> AzureCliCredential | CertificateCredential | ClientSecretCredential:
     """Get or create Azure credential."""
     global _credential
     if _credential is None:
@@ -36,6 +38,21 @@ def get_credential() -> CertificateCredential | ClientSecretCredential:
         certificate_path = os.environ.get("AZURE_CLIENT_CERTIFICATE_PATH")
         certificate_password = os.environ.get("AZURE_CLIENT_CERTIFICATE_PASSWORD")
 
+        # Try Azure CLI first (no config needed)
+        if not client_id and not client_secret and not certificate_path:
+            try:
+                _credential = AzureCliCredential()
+                # Test it works
+                _credential.get_token(DEFENDER_SCOPE)
+                return _credential
+            except Exception as e:
+                raise ValueError(
+                    "Azure CLI authentication failed. Run 'az login' first, "
+                    "or set AZURE_TENANT_ID and AZURE_CLIENT_ID with either "
+                    "AZURE_CLIENT_CERTIFICATE_PATH or AZURE_CLIENT_SECRET."
+                ) from e
+
+        # Fall back to existing certificate/secret logic
         if not tenant_id or not client_id:
             raise ValueError(
                 "Missing Azure credentials. "
