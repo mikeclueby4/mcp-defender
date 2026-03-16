@@ -1,7 +1,8 @@
 """MCP server for Microsoft Defender Advanced Hunting.
 
-Uses WindowsDefenderATP API (api.securitycenter.microsoft.com) for direct,
-fast access to Advanced Hunting queries.
+Uses the unified Microsoft 365 Defender API (api.security.microsoft.com) for
+Advanced Hunting queries across all workloads (Device, Identity, Email,
+Cloud App, and AI tables).
 """
 
 import asyncio
@@ -19,8 +20,8 @@ load_dotenv()
 
 server = Server("mcp-defender")
 
-# Defender API endpoint
-DEFENDER_API_BASE = "https://api.securitycenter.microsoft.com"
+# Unified M365 Defender API endpoint (covers all workloads)
+DEFENDER_API_BASE = "https://api.security.microsoft.com"
 DEFENDER_SCOPE = "https://api.securitycenter.microsoft.com/.default"
 
 _credential: CertificateCredential | ClientSecretCredential | None = None
