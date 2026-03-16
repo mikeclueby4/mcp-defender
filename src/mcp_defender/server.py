@@ -22,7 +22,7 @@ server = Server("mcp-defender")
 
 # Unified M365 Defender API endpoint (covers all workloads)
 DEFENDER_API_BASE = "https://api.security.microsoft.com"
-DEFENDER_SCOPE = "https://api.securitycenter.microsoft.com/.default"
+DEFENDER_SCOPE = "https://api.security.microsoft.com/.default"
 
 _credential: CertificateCredential | ClientSecretCredential | None = None
 
@@ -150,7 +150,7 @@ async def run_defender_query(query: str) -> dict[str, Any]:
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            f"{DEFENDER_API_BASE}/api/advancedqueries/run",
+            f"{DEFENDER_API_BASE}/api/advancedhunting/run",
             headers={
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
