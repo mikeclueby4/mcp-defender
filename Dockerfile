@@ -2,7 +2,7 @@
 # Multi-stage build for smaller final image
 
 # Stage 1: Build stage
-FROM python:3.11-slim as builder
+FROM python:3.14-slim as builder
 
 # Create virtual environment
 RUN python -m venv /opt/venv
@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
 # Stage 2: Runtime stage
-FROM python:3.11-slim as runtime
+FROM python:3.14-slim as runtime
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash mcpuser
