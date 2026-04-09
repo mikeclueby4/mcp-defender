@@ -1,0 +1,22 @@
+{
+  "eval_id": 3,
+  "eval_name": "cidr-tor",
+  "prompt": "Find all devices that have made network connections to any IP in the 185.220.0.0/16 range (known Tor exit node range) in the past 2 weeks.",
+  "assertions": [
+    {
+      "text": "Query uses ipv6_is_match for CIDR range comparison, not startswith or contains",
+      "passed": false,
+      "evidence": "Uses ipv4_is_in_range() — won't match IPv6-mapped ::ffff:185.220.x.x addresses"
+    },
+    {
+      "text": "Query uses DeviceNetworkEvents",
+      "passed": true,
+      "evidence": "DeviceNetworkEvents is the primary table"
+    },
+    {
+      "text": "Query uses 14d or 2w time filter (not default 7d)",
+      "passed": true,
+      "evidence": "ago(14d)"
+    }
+  ]
+}

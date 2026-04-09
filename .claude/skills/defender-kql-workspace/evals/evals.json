@@ -1,0 +1,115 @@
+{
+  "skill_name": "defender-kql",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Show me all sign-ins from IP 203.0.113.42 in the last 7 days, including whether they succeeded.",
+      "expected_output": "A KQL query using ipv6_is_match() for the IP comparison (not == string equality), querying EntraIdSignInEvents or AADSignInEventsBeta, with a 7-day time filter and relevant projected columns.",
+      "assertions": [
+        {
+          "name": "uses_ipv6_is_match_not_equals",
+          "description": "Query uses ipv6_is_match() for IP comparison, not == or contains or has",
+          "type": "string_match",
+          "pattern": "ipv6_is_match"
+        },
+        {
+          "name": "has_time_filter",
+          "description": "Query includes a time filter (ago(7d) or similar)",
+          "type": "string_match",
+          "pattern": "ago("
+        },
+        {
+          "name": "queries_signin_table",
+          "description": "Query uses a sign-in table (EntraIdSignInEvents or AADSignInEventsBeta)",
+          "type": "string_match",
+          "pattern": "SignInEvents"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I want to hunt for any AI agents in our tenant that have external knowledge sources or are connected to other agents. What does that look like?",
+      "expected_output": "The assistant should call get_hunting_schema for AIAgentsInfo, do a take 3 sample query, then write a hunting query targeting KnowledgeDetails and ConnectedAgentsSchemaNames columns. Should not guess column semantics without sampling first.",
+      "assertions": [
+        {
+          "name": "calls_schema_for_AIAgentsInfo",
+          "description": "Assistant calls get_hunting_schema with AIAgentsInfo before writing the main query",
+          "type": "tool_call",
+          "tool": "get_hunting_schema",
+          "argument_contains": "AIAgentsInfo"
+        },
+        {
+          "name": "samples_table_first",
+          "description": "Assistant runs a take 3 (or take N) sample on AIAgentsInfo before the main query",
+          "type": "string_match",
+          "pattern": "take"
+        },
+        {
+          "name": "addresses_knowledge_or_connected",
+          "description": "Final query targets KnowledgeDetails or ConnectedAgentsSchemaNames",
+          "type": "string_match",
+          "pattern": "Knowledge"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Find all devices that have made network connections to any IP in the 185.220.0.0/16 range (known Tor exit node range) in the past 2 weeks.",
+      "expected_output": "A KQL query against DeviceNetworkEvents using ipv6_is_match with the CIDR range, a 14-day time filter, and appropriate projection/summarization. Must NOT use string comparison for the IP range.",
+      "assertions": [
+        {
+          "name": "uses_ipv6_is_match_for_cidr",
+          "description": "Query uses ipv6_is_match for CIDR range comparison, not startswith or contains",
+          "type": "string_match",
+          "pattern": "ipv6_is_match"
+        },
+        {
+          "name": "targets_network_table",
+          "description": "Query uses DeviceNetworkEvents",
+          "type": "string_match",
+          "pattern": "DeviceNetworkEvents"
+        },
+        {
+          "name": "correct_time_filter",
+          "description": "Query uses 14d or 2w time filter (not default 7d, since user specified 2 weeks)",
+          "type": "regex_match",
+          "pattern": "ago\\(1[34]d|ago\\(2w"
+        }
+      ]
+    },
+
+    {
+      "id": 4,
+      "prompt": "Write a KQL query to find all internet-exposed servers in ExposureGraphNodes. I want to filter NodeProperties to show only nodes that have internet exposure flagged. Show me the node name, type, and the relevant exposure properties.",
+      "expected_output": "Claude attempts a doc fetch for ExposureGraphNodes before writing KQL. The query uses parse_json/tostring on NodeProperties and filters for internet-exposure-related keys.",
+      "files": [],
+      "expectations": [
+        "A doc fetch was attempted for ExposureGraphNodes — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a web fetch to raw.githubusercontent.com/MicrosoftDocs/defender-docs mentioning exposuregraphnodes, OR a web_read/WebFetch call to a learn.microsoft.com URL containing 'exposuregraphnodes'",
+        "The response includes a KQL query that references the ExposureGraphNodes table",
+        "The KQL query uses dynamic column access such as parse_json(), tostring(), or bag_keys() to work with NodeProperties"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Can you write a KQL query against AIAgentsInfo to list all Copilot Studio agents that have tools with external HTTP connectors? I'm doing a security review and worried about data exfiltration paths through AI agents.",
+      "expected_output": "Claude attempts a doc fetch for AIAgentsInfo before writing KQL. The query handles the sparse/snapshot nature of the table (uses ago(90d) or no time filter) and accesses AgentToolsDetails dynamically.",
+      "files": [],
+      "expectations": [
+        "A doc fetch was attempted for AIAgentsInfo — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a web fetch to raw.githubusercontent.com/MicrosoftDocs/defender-docs mentioning aiagentsinfo, OR a web_read/WebFetch call to a learn.microsoft.com URL containing 'aiagentsinfo'",
+        "The response includes a KQL query that references the AIAgentsInfo table",
+        "The query either omits the time filter or uses a wide window (ago(30d) or larger) rather than the default 7d — reflecting the sparse/snapshot nature of AIAgentsInfo data"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "I need a KQL query to hunt for suspicious OAuth app activity in CloudAppEvents — specifically looking for OAuth apps that accessed significantly more data or new resource types compared to their recent baseline. This is for an insider threat investigation.",
+      "expected_output": "Claude attempts a doc fetch for CloudAppEvents before writing KQL. The query aggregates by app/resource and uses dynamic column access for CloudAppEvents-specific fields.",
+      "files": [],
+      "expectations": [
+        "A doc fetch was attempted for CloudAppEvents — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a web fetch to raw.githubusercontent.com/MicrosoftDocs/defender-docs mentioning cloudappevents, OR a web_read/WebFetch call to a learn.microsoft.com URL containing 'cloudappevents'",
+        "The response includes a KQL query that references the CloudAppEvents table",
+        "The KQL query uses aggregation (summarize) to compare baseline vs. recent activity rather than returning raw rows"
+      ]
+    }    
+  ]
+}

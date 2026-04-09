@@ -1,0 +1,16 @@
+{
+  "eval_id": 5,
+  "eval_name": "aiagentsinfo-docfetch",
+  "prompt": "Can you write a KQL query against AIAgentsInfo to list all Copilot Studio agents that have tools with external HTTP connectors? I'm doing a security review and worried about data exfiltration paths through AI agents.",
+  "assertions": [
+    {
+      "text": "A doc fetch was attempted for AIAgentsInfo — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a WebFetch/web_read to raw.githubusercontent.com/MicrosoftDocs/defender-docs containing 'aiagentsinfo', OR a WebFetch/web_read to learn.microsoft.com containing 'aiagentsinfo'"
+    },
+    {
+      "text": "The response includes a KQL query that references the AIAgentsInfo table"
+    },
+    {
+      "text": "The query either omits the time filter or uses a window of ago(30d) or larger — reflecting the skill's guidance that AIAgentsInfo is sparse/snapshot-style and the default 7d window returns nothing"
+    }
+  ]
+}

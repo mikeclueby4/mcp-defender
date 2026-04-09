@@ -1,0 +1,20 @@
+{
+  "expectations": [
+    {
+      "text": "A doc fetch was attempted for ExposureGraphNodes — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a WebFetch/web_read to raw.githubusercontent.com/MicrosoftDocs/defender-docs containing 'exposuregraphnodes', OR a WebFetch/web_read to learn.microsoft.com containing 'exposuregraphnodes'",
+      "passed": true,
+      "evidence": "Tool call #4: mcp__microsoft-learn__microsoft_docs_fetch(url='https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-exposuregraphnodes-table') — explicitly listed in tool calls made"
+    },
+    {
+      "text": "The response includes a KQL query that references the ExposureGraphNodes table",
+      "passed": true,
+      "evidence": "Final KQL query opens with 'ExposureGraphNodes' as the source table"
+    },
+    {
+      "text": "The KQL query uses dynamic column access — parse_json(), tostring(), bag_keys(), or similar — to work with NodeProperties",
+      "passed": true,
+      "evidence": "Query uses 'parse_json(tostring(NodeProperties))' and multiple tostring(), tobool(), todatetime() calls to extract properties from the dynamic column"
+    }
+  ],
+  "summary": { "passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0 }
+}

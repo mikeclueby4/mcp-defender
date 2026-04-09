@@ -1,0 +1,28 @@
+{
+  "expectations": [
+    {
+      "text": "A doc fetch was attempted for CloudAppEvents — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a WebFetch/web_read to raw.githubusercontent.com/MicrosoftDocs/defender-docs containing 'cloudappevents', OR a WebFetch/web_read to learn.microsoft.com containing 'cloudappevents'",
+      "passed": false,
+      "evidence": "Tool calls section states 'No external tool calls were made. Query written from expert knowledge.' No fetch attempted."
+    },
+    {
+      "text": "The response includes a KQL query that references the CloudAppEvents table",
+      "passed": true,
+      "evidence": "Both Baseline and Detection let-subqueries source from CloudAppEvents"
+    },
+    {
+      "text": "The KQL query uses summarize to aggregate activity — not raw row output — since the skill guidance is to prefer aggregation for large tables",
+      "passed": true,
+      "evidence": "Query uses summarize extensively in both subqueries. The without-skill agent independently chose aggregation for this use case — non-discriminating assertion confirmed."
+    }
+  ],
+  "summary": { "passed": 2, "failed": 1, "total": 3, "pass_rate": 0.67 },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "Assertions 2-3 pass in both configurations. A more discriminating assertion for CloudAppEvents would check for use of Defender-native signals (UncommonForUser, LastSeenForUser, IsAnonymousProxy) which only appear in the with-skill run after the doc fetch."
+      }
+    ],
+    "overall": "Assertion 1 discriminates cleanly. The real quality difference (Defender-native anomaly signals) is not captured."
+  }
+}

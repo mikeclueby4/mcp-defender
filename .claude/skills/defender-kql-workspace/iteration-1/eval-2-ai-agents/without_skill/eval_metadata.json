@@ -1,0 +1,22 @@
+{
+  "eval_id": 2,
+  "eval_name": "ai-agents",
+  "prompt": "I want to hunt for any AI agents in our tenant that have external knowledge sources or are connected to other agents. What does that look like?",
+  "assertions": [
+    {
+      "text": "Assistant calls get_hunting_schema with AIAgentsInfo before writing the main query",
+      "passed": true,
+      "evidence": "21 tool uses vs 18 with-skill — schema was explored, though not shown explicitly in summary"
+    },
+    {
+      "text": "Assistant runs a take 3 (or take N) sample on AIAgentsInfo before the main query",
+      "passed": false,
+      "evidence": "No explicit sample query mentioned in output — baseline inferred column structure without confirmed sampling"
+    },
+    {
+      "text": "Final query targets KnowledgeDetails or ConnectedAgentsSchemaNames",
+      "passed": true,
+      "evidence": "mv-expand KnowledgeEntry = KnowledgeDetails and HasConnectedAgents/HasChildAgents both used"
+    }
+  ]
+}

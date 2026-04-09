@@ -37,6 +37,12 @@ ruff check --fix .  # auto-fix
 mypy src
 ```
 
+## Bundled Claude Code Skill
+
+`.claude/skills/defender-kql/SKILL.md` — loaded automatically when this repo is open in Claude Code. Provides KQL authoring guidance: pre-query schema inspection, `ipv6_is_match()` for IP comparisons, Defender-specific syntax gotchas, and per-table notes.
+
+`.claude/skills/defender-kql-workspace/` — skill evaluation suite. Contains `evals.json`, 3 iterations of 6 evals each (with/without skill), and HTML benchmark reviews. Run evals with `model=sonnet-4.6` and `effort=low`; view HTML results with `start <path>.html` on Windows.
+
 ## Architecture
 
 ```

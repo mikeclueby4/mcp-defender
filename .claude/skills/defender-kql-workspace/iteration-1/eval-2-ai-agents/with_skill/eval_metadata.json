@@ -1,0 +1,22 @@
+{
+  "eval_id": 2,
+  "eval_name": "ai-agents",
+  "prompt": "I want to hunt for any AI agents in our tenant that have external knowledge sources or are connected to other agents. What does that look like?",
+  "assertions": [
+    {
+      "text": "Assistant calls get_hunting_schema with AIAgentsInfo before writing the main query",
+      "passed": true,
+      "evidence": "Schema output shown in result — key dynamic columns documented before query written"
+    },
+    {
+      "text": "Assistant runs a take 3 (or take N) sample on AIAgentsInfo before the main query",
+      "passed": true,
+      "evidence": "take 3 sample explicitly run; discovered source.$kind values (DataverseStructuredSearchSource, PublicSiteSearchSource) which directly shaped the query filter"
+    },
+    {
+      "text": "Final query targets KnowledgeDetails or ConnectedAgentsSchemaNames",
+      "passed": true,
+      "evidence": "mv-expand KnowledgeSource = KnowledgeDetails and ConnectedAgentsSchemaNames both used"
+    }
+  ]
+}

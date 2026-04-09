@@ -160,6 +160,19 @@ DeviceNetworkEvents
 | top 20 by ConnectionCount
 ```
 
+## Claude Code Skill
+
+This repo ships a bundled **`defender-kql` Claude Code skill** in [`.claude/skills/defender-kql/`](.claude/skills/defender-kql/). It is loaded automatically when you open this repository in Claude Code.
+
+The skill provides expert guidance for writing KQL against Defender Advanced Hunting, including:
+
+- Pre-query schema inspection workflow (`get_hunting_schema` + `take 3` live sample)
+- IP address comparison pitfalls (`ipv6_is_match()` for IPv4-mapped addresses)
+- Defender-specific KQL syntax differences from standard ADX (no ternary, `let`+`join` limitations, double-serialized dynamic columns)
+- Table-specific notes for `AIAgentsInfo`, `ExposureGraphNodes`, `EntraIdSignInEvents`, and others
+
+The [`.claude/skills/defender-kql-workspace/`](.claude/skills/defender-kql-workspace/) folder contains the skill evaluation suite (6 evals across 3 iterations) used to measure and tune the skill.
+
 ## Development
 
 ```bash

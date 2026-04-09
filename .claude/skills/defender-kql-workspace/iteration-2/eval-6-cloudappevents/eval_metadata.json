@@ -1,0 +1,16 @@
+{
+  "eval_id": 6,
+  "eval_name": "cloudappevents-docfetch",
+  "prompt": "I need a KQL query to hunt for suspicious OAuth app activity in CloudAppEvents — specifically looking for OAuth apps that accessed significantly more data or new resource types compared to their recent baseline. This is for an insider threat investigation.",
+  "assertions": [
+    {
+      "text": "A doc fetch was attempted for CloudAppEvents — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a WebFetch/web_read to raw.githubusercontent.com/MicrosoftDocs/defender-docs containing 'cloudappevents', OR a WebFetch/web_read to learn.microsoft.com containing 'cloudappevents'"
+    },
+    {
+      "text": "The response includes a KQL query that references the CloudAppEvents table"
+    },
+    {
+      "text": "The KQL query uses summarize to aggregate activity — not raw row output — since the skill guidance is to prefer aggregation for large tables"
+    }
+  ]
+}

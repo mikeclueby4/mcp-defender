@@ -1,0 +1,22 @@
+{
+  "eval_id": 1,
+  "eval_name": "ip-signin",
+  "prompt": "Show me all sign-ins from IP 203.0.113.42 in the last 7 days, including whether they succeeded.",
+  "assertions": [
+    {
+      "text": "Query uses ipv6_is_match() for IP comparison, not == or contains or has",
+      "passed": false,
+      "evidence": "Query uses IPAddress == targetIP (string equality) — will silently miss ::ffff: form"
+    },
+    {
+      "text": "Query includes a time filter (ago(7d) or similar)",
+      "passed": true,
+      "evidence": "| where Timestamp >= ago(lookback) with lookback = 7d"
+    },
+    {
+      "text": "Query uses a sign-in table (EntraIdSignInEvents or AADSignInEventsBeta)",
+      "passed": true,
+      "evidence": "Uses AADSignInEventsBeta and IdentityLogonEvents"
+    }
+  ]
+}

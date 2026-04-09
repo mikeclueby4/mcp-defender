@@ -1,0 +1,28 @@
+{
+  "expectations": [
+    {
+      "text": "A doc fetch was attempted for AIAgentsInfo — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a WebFetch/web_read to raw.githubusercontent.com/MicrosoftDocs/defender-docs containing 'aiagentsinfo', OR a WebFetch/web_read to learn.microsoft.com containing 'aiagentsinfo'",
+      "passed": false,
+      "evidence": "Tool calls section states 'No external documentation or web fetch calls were made. Query written from internalized knowledge.' No fetch of any kind."
+    },
+    {
+      "text": "The response includes a KQL query that references the AIAgentsInfo table",
+      "passed": true,
+      "evidence": "Query opens with 'AIAgentsInfo | where AgentType == ...' — table name correct. Note: uses wrong column names (Tools instead of AgentToolsDetails, AgentType which may not exist) so query would likely return 0 rows."
+    },
+    {
+      "text": "The query either omits the time filter or uses a window of ago(30d) or larger — reflecting the skill's guidance that AIAgentsInfo is sparse/snapshot-style and the default 7d window returns nothing",
+      "passed": true,
+      "evidence": "Query has no Timestamp where-clause at all — time filter omitted. This happens to be correct behavior, but for the wrong reason: without the skill, the model didn't know AIAgentsInfo is sparse; it just didn't add a time filter."
+    }
+  ],
+  "summary": { "passed": 2, "failed": 1, "total": 3, "pass_rate": 0.67 },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "Assertion 3 passes in both configurations and is non-discriminating for this eval. The more meaningful quality difference is column name correctness (AgentToolsDetails vs Tools) — consider adding an assertion for correct column name usage."
+      }
+    ],
+    "overall": "Assertion 1 discriminates cleanly. Assertions 2-3 both pass regardless of skill. The real quality gap (wrong column names in without-skill) is not captured by current assertions."
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "eval_id": 4,
+  "eval_name": "exposuregraphnodes-docfetch",
+  "prompt": "Write a KQL query to find all internet-exposed servers in ExposureGraphNodes. I want to filter NodeProperties to show only nodes that have internet exposure flagged. Show me the node name, type, and the relevant exposure properties.",
+  "assertions": [
+    {
+      "text": "A doc fetch was attempted for ExposureGraphNodes — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a WebFetch/web_read to raw.githubusercontent.com/MicrosoftDocs/defender-docs containing 'exposuregraphnodes', OR a WebFetch/web_read to learn.microsoft.com containing 'exposuregraphnodes'"
+    },
+    {
+      "text": "The response includes a KQL query that references the ExposureGraphNodes table"
+    },
+    {
+      "text": "The KQL query uses dynamic column access — parse_json(), tostring(), bag_keys(), or similar — to work with NodeProperties"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "expectations": [
+    {
+      "text": "A doc fetch was attempted for AIAgentsInfo — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a WebFetch/web_read to raw.githubusercontent.com/MicrosoftDocs/defender-docs containing 'aiagentsinfo', OR a WebFetch/web_read to learn.microsoft.com containing 'aiagentsinfo'",
+      "passed": true,
+      "evidence": "Tool call #4: mcp__microsoft-learn__microsoft_docs_fetch(url='https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aiagentsinfo-table') — explicitly listed"
+    },
+    {
+      "text": "The response includes a KQL query that references the AIAgentsInfo table",
+      "passed": true,
+      "evidence": "Both primary and supplementary queries open with 'AIAgentsInfo' as the source table"
+    },
+    {
+      "text": "The query either omits the time filter or uses a window of ago(30d) or larger — reflecting the skill's guidance that AIAgentsInfo is sparse/snapshot-style and the default 7d window returns nothing",
+      "passed": true,
+      "evidence": "Primary query uses 'summarize arg_max(Timestamp, *) by AIAgentId' — gets current state for each agent without any Timestamp where-filter, effectively treating table as current inventory snapshot. No time restriction applied."
+    }
+  ],
+  "summary": { "passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0 }
+}

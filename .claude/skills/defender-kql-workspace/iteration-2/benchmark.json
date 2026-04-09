@@ -1,0 +1,164 @@
+{
+  "metadata": {
+    "skill_name": "defender-kql",
+    "skill_path": "C:/Users/mioltrav/.claude/skills/defender-kql",
+    "executor_model": "claude-sonnet-4-6",
+    "analyzer_model": "claude-sonnet-4-6",
+    "timestamp": "2026-04-09T00:00:00Z",
+    "evals_run": ["exposuregraphnodes-docfetch", "aiagentsinfo-docfetch", "cloudappevents-docfetch"],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 4,
+      "eval_name": "exposuregraphnodes-docfetch",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 188.9,
+        "tokens": 32694,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Doc fetch attempted for ExposureGraphNodes", "passed": true, "evidence": "mcp__microsoft-learn__microsoft_docs_fetch called with correct learn.microsoft.com URL"},
+        {"text": "KQL references ExposureGraphNodes", "passed": true, "evidence": "Table used as source in final query"},
+        {"text": "Uses dynamic column access (parse_json, tostring, etc.)", "passed": true, "evidence": "parse_json(tostring(NodeProperties)) with tobool/tostring/todatetime extractions"}
+      ]
+    },
+    {
+      "eval_id": 4,
+      "eval_name": "exposuregraphnodes-docfetch",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.67,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 34.5,
+        "tokens": 12878,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Doc fetch attempted for ExposureGraphNodes", "passed": false, "evidence": "No external lookups made — query written from internal knowledge"},
+        {"text": "KQL references ExposureGraphNodes", "passed": true, "evidence": "Table used as source"},
+        {"text": "Uses dynamic column access (parse_json, tostring, etc.)", "passed": true, "evidence": "parse_json used but with wrong property paths (.data.* vs actual .rawData.*)"}
+      ]
+    },
+    {
+      "eval_id": 5,
+      "eval_name": "aiagentsinfo-docfetch",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 355.9,
+        "tokens": 46339,
+        "tool_calls": 40,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Doc fetch attempted for AIAgentsInfo", "passed": true, "evidence": "mcp__microsoft-learn__microsoft_docs_fetch called with correct learn.microsoft.com URL"},
+        {"text": "KQL references AIAgentsInfo", "passed": true, "evidence": "Both queries source from AIAgentsInfo"},
+        {"text": "Omits time filter or uses wide window (ago(30d)+)", "passed": true, "evidence": "Uses arg_max(Timestamp,*) by AIAgentId — snapshot pattern, no time restriction"}
+      ]
+    },
+    {
+      "eval_id": 5,
+      "eval_name": "aiagentsinfo-docfetch",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.67,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 38.0,
+        "tokens": 12965,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Doc fetch attempted for AIAgentsInfo", "passed": false, "evidence": "No external documentation fetched — query from internalized knowledge"},
+        {"text": "KQL references AIAgentsInfo", "passed": true, "evidence": "Table name correct, but used wrong column names (Tools instead of AgentToolsDetails)"},
+        {"text": "Omits time filter or uses wide window (ago(30d)+)", "passed": true, "evidence": "No Timestamp filter applied — happens to be correct but not from skill guidance"}
+      ]
+    },
+    {
+      "eval_id": 6,
+      "eval_name": "cloudappevents-docfetch",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 153.0,
+        "tokens": 27335,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Doc fetch attempted for CloudAppEvents", "passed": true, "evidence": "mcp__microsoft-learn__microsoft_docs_fetch called with correct learn.microsoft.com URL"},
+        {"text": "KQL references CloudAppEvents", "passed": true, "evidence": "Both Baseline and Recent subqueries source from CloudAppEvents"},
+        {"text": "Uses summarize for aggregation", "passed": true, "evidence": "summarize used in both let subqueries with count, make_set, dcount, countif"}
+      ]
+    },
+    {
+      "eval_id": 6,
+      "eval_name": "cloudappevents-docfetch",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.67,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 62.1,
+        "tokens": 13874,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Doc fetch attempted for CloudAppEvents", "passed": false, "evidence": "No external tool calls made — query from expert knowledge"},
+        {"text": "KQL references CloudAppEvents", "passed": true, "evidence": "Table used correctly throughout"},
+        {"text": "Uses summarize for aggregation", "passed": true, "evidence": "Sophisticated dual-window summarize query — non-discriminating assertion confirmed"}
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0},
+      "time_seconds": {"mean": 232.6, "stddev": 97.1, "min": 153.0, "max": 355.9},
+      "tokens": {"mean": 35456, "stddev": 9571, "min": 27335, "max": 46339}
+    },
+    "without_skill": {
+      "pass_rate": {"mean": 0.67, "stddev": 0.0, "min": 0.67, "max": 0.67},
+      "time_seconds": {"mean": 44.9, "stddev": 14.6, "min": 34.5, "max": 62.1},
+      "tokens": {"mean": 13239, "stddev": 519, "min": 12878, "max": 13874}
+    },
+    "delta": {
+      "pass_rate": "+0.33",
+      "time_seconds": "+187.7",
+      "tokens": "+22217"
+    }
+  },
+  "notes": [
+    "Assertion 1 (doc fetch attempted) is perfectly discriminating — passes 100% with skill, fails 100% without. This is the key behavioral change the skill produces.",
+    "Assertions 2-3 are non-discriminating — pass in both configurations. They serve as quality floors (Claude produces valid KQL either way) rather than differentiators.",
+    "The real quality gap not captured by assertions: without-skill runs used wrong NodeProperties paths (.data.* vs .rawData.*) and wrong AIAgentsInfo column names (Tools vs AgentToolsDetails). These would return 0 rows in a real tenant.",
+    "With-skill CloudAppEvents query incorporated three Defender-native anomaly signals (UncommonForUser, LastSeenForUser, IsAnonymousProxy) learned from the doc fetch — not captured by assertions.",
+    "With-skill runs are ~5x slower and ~2.7x more token-intensive — cost of thorough schema lookup, doc fetch, and live sampling before writing the query.",
+    "Eval 5 with-skill (355s, 40 tool calls) was significantly more exploratory than eval 4 (189s, 15 calls) and eval 6 (153s, 11 calls) — AIAgentsInfo required more iteration to discover actual action.$kind values and syntax limitations."
+  ]
+}

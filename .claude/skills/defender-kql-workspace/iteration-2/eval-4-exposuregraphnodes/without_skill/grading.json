@@ -1,0 +1,28 @@
+{
+  "expectations": [
+    {
+      "text": "A doc fetch was attempted for ExposureGraphNodes — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a WebFetch/web_read to raw.githubusercontent.com/MicrosoftDocs/defender-docs containing 'exposuregraphnodes', OR a WebFetch/web_read to learn.microsoft.com containing 'exposuregraphnodes'",
+      "passed": false,
+      "evidence": "Tool calls section states 'no external lookups made; query written from internal knowledge'. No doc fetch of any kind was attempted."
+    },
+    {
+      "text": "The response includes a KQL query that references the ExposureGraphNodes table",
+      "passed": true,
+      "evidence": "Query opens with 'ExposureGraphNodes' as source table"
+    },
+    {
+      "text": "The KQL query uses dynamic column access — parse_json(), tostring(), bag_keys(), or similar — to work with NodeProperties",
+      "passed": true,
+      "evidence": "Query uses parse_json(NodeProperties) and multiple tostring(), tobool(), toint() calls. However, note that property paths are guessed as .data.* (e.g., props.data.isInternetFacing) rather than the actual .rawData.* paths — these would return null in practice."
+    }
+  ],
+  "summary": { "passed": 2, "failed": 1, "total": 3, "pass_rate": 0.67 },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "Assertion 3 passes because parse_json is used, but the property paths are wrong (.data.* vs actual .rawData.*). Consider adding an assertion that checks for correct structural paths, or note that syntax compliance ≠ semantic correctness here."
+      }
+    ],
+    "overall": "Assertion 1 is the key discriminator. Assertions 2-3 pass in both configurations — useful as quality floors but not differentiators."
+  }
+}

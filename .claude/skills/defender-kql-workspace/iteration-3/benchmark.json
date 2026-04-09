@@ -1,0 +1,105 @@
+{
+  "metadata": {
+    "skill_name": "defender-kql",
+    "skill_path": "C:/Users/mioltrav/.claude/skills/defender-kql",
+    "executor_model": "claude-sonnet-4-6",
+    "analyzer_model": "claude-sonnet-4-6",
+    "timestamp": "2026-04-09T00:00:00Z",
+    "evals_run": ["exposuregraphnodes-docfetch", "aiagentsinfo-docfetch", "cloudappevents-docfetch"],
+    "runs_per_configuration": 1,
+    "note": "with_skill only; without_skill baseline carried from iteration-2"
+  },
+  "runs": [
+    {
+      "eval_id": 4,
+      "eval_name": "exposuregraphnodes-docfetch",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 110.8,
+        "tokens": 27253,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Doc fetch attempted for ExposureGraphNodes", "passed": true, "evidence": "mcp__microsoft-learn__microsoft_docs_fetch called (tool call #1)"},
+        {"text": "KQL references ExposureGraphNodes", "passed": true, "evidence": "ExposureGraphNodes used as table source in final query"},
+        {"text": "Uses dynamic column access (parse_json, tostring, etc.)", "passed": true, "evidence": "parse_json(tostring(NodeProperties)) used; property paths correctly extracted via rawData.*"}
+      ]
+    },
+    {
+      "eval_id": 5,
+      "eval_name": "aiagentsinfo-docfetch",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 161.0,
+        "tokens": 29303,
+        "tool_calls": 19,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Doc fetch attempted for AIAgentsInfo", "passed": true, "evidence": "mcp__microsoft-learn__microsoft_docs_fetch called (tool call #1)"},
+        {"text": "KQL references AIAgentsInfo", "passed": true, "evidence": "AIAgentsInfo used as table source in final query"},
+        {"text": "Omits time filter or uses wide window (ago(30d)+)", "passed": true, "evidence": "arg_max(Timestamp,*) by AIAgentId pattern — snapshot deduplication, no time restriction applied"}
+      ]
+    },
+    {
+      "eval_id": 6,
+      "eval_name": "cloudappevents-docfetch",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 572.8,
+        "tokens": 44810,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Doc fetch attempted for CloudAppEvents", "passed": true, "evidence": "mcp__microsoft-learn__microsoft_docs_fetch called (tool call #1)"},
+        {"text": "KQL references CloudAppEvents", "passed": true, "evidence": "CloudAppEvents used throughout all queries"},
+        {"text": "Uses summarize for aggregation", "passed": true, "evidence": "summarize + evaluate pivot() used for baseline vs. current comparison"}
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill_it3": {
+      "pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0},
+      "time_seconds": {"mean": 281.5, "stddev": 218.3, "min": 110.8, "max": 572.8},
+      "tokens": {"mean": 33789, "stddev": 9185, "min": 27253, "max": 44810},
+      "tool_calls": {"mean": 14.3, "stddev": 4.2, "min": 11, "max": 19}
+    },
+    "with_skill_it2": {
+      "pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0},
+      "time_seconds": {"mean": 232.6, "stddev": 97.1, "min": 153.0, "max": 355.9},
+      "tokens": {"mean": 35456, "stddev": 9571, "min": 27335, "max": 46339},
+      "tool_calls": {"mean": 22.0, "stddev": 14.5, "min": 11, "max": 40}
+    },
+    "delta_it3_vs_it2": {
+      "pass_rate": "0.0",
+      "time_seconds": "+48.9 (driven entirely by eval-6 regression: 153s→573s)",
+      "tokens": "-1667",
+      "tool_calls": "-7.7 (35% fewer calls on average)"
+    }
+  },
+  "notes": [
+    "Eval 4 (ExposureGraphNodes): clear improvement — 189s→111s (-41%), 15→11 tool calls. Syntax hints (double-serialized dynamic columns) prevented exploratory null-property debugging.",
+    "Eval 5 (AIAgentsInfo): largest improvement — 356s→161s (-55%), 40→19 tool calls. Official MS Learn doc included sample queries with exact action.$kind='HttpRequestAction' path, eliminating trial-and-error that dominated iteration-2.",
+    "Eval 6 (CloudAppEvents): regression — 153s→573s (+274%), 11→13 tool calls. Root cause: skill warns about `let`+`union` but NOT `let`+`join`. Agent wrote a let+join query twice (2 failed runs) before switching to evaluate pivot(). The `let`+`join` gotcha needs to be added to the skill.",
+    "Tool call count improvement (mean -7.7) is more reliable than time as a signal — time has high variance due to live query execution latency and MCP call overhead.",
+    "Pass rate remains 100% across all evals in both iterations — the assertions are non-discriminating on quality (both iterations produce valid, running KQL).",
+    "Action item: extend the skill's 'let + union causes parse errors' gotcha to cover let+join as well, and ideally suggest evaluate pivot() as the canonical workaround for before/after comparisons."
+  ]
+}

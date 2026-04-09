@@ -1,0 +1,20 @@
+{
+  "expectations": [
+    {
+      "text": "A doc fetch was attempted for CloudAppEvents — transcript shows a call to microsoft_docs_fetch with a learn.microsoft.com URL, OR a WebFetch/web_read to raw.githubusercontent.com/MicrosoftDocs/defender-docs containing 'cloudappevents', OR a WebFetch/web_read to learn.microsoft.com containing 'cloudappevents'",
+      "passed": true,
+      "evidence": "Tool call #2: mcp__microsoft-learn__microsoft_docs_fetch(url='https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table') — explicitly listed"
+    },
+    {
+      "text": "The response includes a KQL query that references the CloudAppEvents table",
+      "passed": true,
+      "evidence": "Both Baseline and Detection let-subqueries source from CloudAppEvents"
+    },
+    {
+      "text": "The KQL query uses summarize to aggregate activity — not raw row output — since the skill guidance is to prefer aggregation for large tables",
+      "passed": true,
+      "evidence": "Query uses summarize in both Baseline and Recent subqueries, computing count(), make_set(), dcount(), countif() aggregations per (OAuthAppId, AccountObjectId)"
+    }
+  ],
+  "summary": { "passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0 }
+}
