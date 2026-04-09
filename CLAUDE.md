@@ -34,7 +34,7 @@ HOWTO-ENTRA-APPREG-DELEGATED.md  # Step-by-step Entra ID app registration guide 
 
 1. **CertificateCredential** — if `AZURE_CLIENT_CERTIFICATE_PATH` is set (optional: `AZURE_CLIENT_CERTIFICATE_PASSWORD`)
 2. **ClientSecretCredential** — if `AZURE_CLIENT_SECRET` is set
-3. **InteractiveBrowserCredential** — fallback; opens browser on first use, then caches token
+3. **InteractiveBrowserCredential** — fallback; opens browser on first use, then caches token persistently via `msal-extensions` (DPAPI on Windows); silent on subsequent starts until refresh token expires
 
 > **Why not `AzureCliCredential`?** The Azure CLI's own first-party app was never granted `AdvancedHunting.Read` — tokens only carry `user_impersonation`, which the Defender API rejects.
 >

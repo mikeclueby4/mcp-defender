@@ -7,6 +7,7 @@ Cloud App, and AI tables).
 
 import asyncio
 import os
+from pathlib import Path
 from typing import Any, cast
 
 import truststore
@@ -14,7 +15,13 @@ import truststore
 truststore.inject_into_ssl()
 
 import httpx
-from azure.identity import CertificateCredential, ClientSecretCredential, InteractiveBrowserCredential
+from azure.identity import (
+    AuthenticationRecord,
+    CertificateCredential,
+    ClientSecretCredential,
+    InteractiveBrowserCredential,
+    TokenCachePersistenceOptions,
+)
 from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -70,10 +77,29 @@ def get_credential() -> CertificateCredential | ClientSecretCredential | Interac
         else:
             # Public client app: opens browser for interactive sign-in (auth code + PKCE).
             # Not blocked by the "Block device code flow" CA policy.
+            # Private cache name isolates tokens from shared msal.cache used by Azure CLI / VS Code,
+            # which is important for PIM-elevated tokens that should not bleed across tools.
+            cache_options = TokenCachePersistenceOptions(
+                name="mcp-defender",
+                allow_unencrypted_storage=False,
+            )
+            auth_record_path = Path.home() / ".mcp-defender-auth-record.json"
+            auth_record = None
+            if auth_record_path.exists():
+                auth_record = AuthenticationRecord.deserialize(
+                    auth_record_path.read_text(encoding="utf-8")
+                )
             _credential = InteractiveBrowserCredential(
                 tenant_id=tenant_id,
                 client_id=client_id,
+                cache_persistence_options=cache_options,
+                authentication_record=auth_record,
             )
+            if auth_record is None:
+                # First run: authenticate interactively and persist the record so future
+                # starts can find the right cache entry without re-opening the browser.
+                new_record = _credential.authenticate(scopes=[DEFENDER_SCOPE])
+                auth_record_path.write_text(new_record.serialize(), encoding="utf-8")
 
     return _credential
 

@@ -15,7 +15,7 @@ requiring a certificate or client secret.
 
 > 💡 With Defender Unified RBAC enabled, the Entra built-in **Security Reader**
 > role is automatically imported and maps to Defender's "View Data" permission —
-> you do not need to create a separate custom Defender RBAC role.
+> if you have it, you do not need to create a separate custom Defender RBAC role.
 
 ---
 
@@ -24,7 +24,7 @@ requiring a certificate or client secret.
 1. Go to [entra.microsoft.com](https://entra.microsoft.com)
 2. Navigate to **Identity → Applications → App registrations → New registration**
 3. Fill in:
-   - **Name:** `mcp-defender-interactive` (or any name you prefer)
+   - **Name:** `MCP-DefenderKQL (delegated auth)` (or any name you prefer)
    - **Supported account types:** Accounts in this organizational directory only
    - **Redirect URI:** Platform = **Public client/native (mobile & desktop)**,
      URI = `http://localhost`
@@ -43,16 +43,16 @@ Overview page — you will need both below.
 8. Click **Save**
 
 > 💡 "Allow public client flows" enables the auth code flow for clients that
-> present no secret. Without it, Entra rejects the token request even though the
-> user has successfully signed in — the browser redirect completes but the
-> server-side token exchange fails with a `401`.
+> present no secret, i.e. mobile and desktop software. Without it, Entra rejects
+>  the token request even though the user has successfully signed in — the
+>  browser redirect completes but the server-side token exchange fails with a `401`.
 
 ---
 
 ## 3. Lock down who can sign in
 
 By default, any user in your tenant can authenticate to a newly registered app.
-Since this app provides access to security data, restrict it:
+Since this app provides access to security data, consider restricting it:
 
 9. In Entra, go to **Enterprise applications** → search for your app name → select it
 10. Click **Properties**
@@ -61,12 +61,15 @@ Since this app provides access to security data, restrict it:
 13. Go to **Users and groups → Add user/group** and assign only the people who
     should be able to run Advanced Hunting queries
 
+It should be safe to *not* do this, as this app uses the user's own delegated rights.
+It's simply good cyber hygience to not leave unnecessary surfaces exposed. You may
+also elect to set a Conditional Access policy for the enterprise app.
+
 > 💡 This setting lives on the **Enterprise Application** object (the service
 > principal in your tenant), not the App Registration. They are two sides of the
 > same coin — the App Registration is the app's identity definition, the Enterprise
 > Application is its instantiation in your tenant. Without this step, any tenant
-> user can authenticate; they would still be blocked by Defender RBAC, but
-> there is no reason to allow unnecessary auth attempts.
+> user can authenticate, though they would still be blocked by Defender RBAC.
 
 ---
 
@@ -112,13 +115,6 @@ Since this app provides access to security data, restrict it:
 >
 > Cloud Application Administrator is sufficient for this step — Global Admin is
 > not required, since `AdvancedHunting.Read` is not a Microsoft Graph app role.
->
-> **Best practice — admin consent workflow:** Rather than requiring each new user to
-> ask an admin to run through this portal flow, enable the
-> [admin consent workflow](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/configure-admin-consent-workflow)
-> in Entra (Enterprise apps → Consent and permissions → Admin consent settings).
-> Users who need access can then self-request, admins receive an approval
-> notification, and can approve or deny from a queue — no portal navigation needed.
 
 ---
 
@@ -145,21 +141,22 @@ AZURE_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 ## 7. First run
 
-On the first MCP tool call the server will open a browser tab for the user to
-sign in with their Microsoft 365 account. After successful sign-in the token is
-cached in memory for the duration of the server process. Subsequent calls within
-the same session are silent.
+On first start the server opens a browser tab for the user to sign in. After
+successful sign-in the token is stored in an OS-encrypted persistent cache
+(`mcp-defender`, isolated from the shared `msal.cache` used by Azure CLI and
+VS Code). An `AuthenticationRecord` is written to `~/.mcp-defender-auth-record.json`.
+
+On all subsequent starts the server authenticates silently from the cache — **no
+browser prompt** — until the refresh token expires. Refresh tokens for
+non-interactive (non-PIM) sessions typically last 90 days with activity, so in
+practice you should rarely need to re-authenticate. To force a fresh login, delete
+`~/.mcp-defender-auth-record.json`.
 
 > 💡 `InteractiveBrowserCredential` opens the browser via a local loopback
 > redirect (`http://localhost`) — it spins up a temporary HTTP listener to receive
 > the auth code after sign-in, then immediately shuts it down. No server
 > infrastructure is needed, and the loopback origin is exempt from the redirect URI
 > restrictions that apply to public internet URIs.
-
-> **Note:** The token cache is in-memory only. The browser prompt will reappear
-> each time the MCP server process restarts. To persist the cache across restarts,
-> add `msal-extensions` to the project — it provides a DPAPI-encrypted token cache
-> on Windows.
 
 ---
 
@@ -177,3 +174,23 @@ instead, which is not affected by that policy.
 > sign-in on the attacker's behalf. PKCE-based auth code flow prevents this because
 > the code verifier is cryptographically bound to the client that initiated the
 > request.
+
+## Why are you not explaining Certificate / Client Secret setup?
+
+Service principal credentials (certificate or client secret) require the **Application**
+permission `AdvancedQuery.Read.All`, which grants tenant-wide Advanced Hunting access
+with no per-user RBAC enforcement. Any process that holds the credential can query all
+device, identity, email, and cloud app data across the entire organisation — there is no
+"the user only sees what they're entitled to" safety net. That is a significant blast
+radius for a developer tool.
+
+For an unattended pipeline or automation service, service principal auth is the correct
+approach and worth that trade-off. For a tool that a human runs interactively, delegated
+auth is strictly better: the token carries the user's own Defender RBAC permissions, and
+if the credential is compromised it can only be used interactively (browser required).
+
+This guide covers only the delegated case. If you are setting up service principal auth,
+you own that security boundary — Defender exposes sensitive user and enterprise data and
+the `AdvancedQuery.Read.All` application permission should be treated with the same care
+as any other tenant-wide credential.
+
