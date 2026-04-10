@@ -12,6 +12,7 @@ allowed-tools:
   - run_hunting_query   # for executing KQL queries against the tenant
   - microsoft_docs_fetch  # for fetching official Defender Advanced Hunting docs (if configured)
   - web_read  # fallback for fetching docs if microsoft_docs_fetch isn't available
+  - WebFetch(domain:raw.githubusercontent.com, path:raw/MicrosoftDocs/defender-docs/public/defender-xdr/advanced-hunting-*-table.md)  # direct fetch of markdown docs as last resort
   - Read(references/**)
   - Write(references/tables/**)
 ---
@@ -35,6 +36,8 @@ This is especially important for tables with `dynamic` columns (bags of key/valu
 The base directory for this skill is `!{CLAUDE_SKILL_DIR}`.
 
 **When you discover something surprising** — an unexpected column type, a column whose values are much larger than expected, a field name that differs from what the schema implies, behaviour that contradicts what you'd assume — write it to `references/tables/<TableName>.md` immediately (create the file if it doesn't exist). Tersely state what IS (leave reasoning freedom for future AI readers), and when relevant, a minimal KQL example showing working pattern. This keeps the knowledge base growing across sessions. Document audience is yourself, the AI agent.
+
+**This repo is public — never write tenant-specific information into any reference file.** No UPNs, device names, group names, user names, organisation names, or internal naming conventions. Keep all examples generic (e.g. `user@example.com`, `DEVICE-001`).
 
 **For tables with complex dynamic columns** — particularly `ExposureGraphNodes`, `ExposureGraphEdges`, `AIAgentsInfo`, `CloudAppEvents` — also fetch the live Microsoft reference for that table. The docs help with column types and general structure; for dynamic columns like `NodeProperties` whose keys aren't enumerated in the docs, the `take 3` live sample (step 2 above) remains essential.
 
