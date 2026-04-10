@@ -7,6 +7,13 @@ description: >
   tables, or anything involving KQL / Advanced Hunting — even if they don't say
   "defender-kql" explicitly. Also invoke for questions like "show me devices that...",
   "find sign-ins from...", "hunt for...", or "what happened to <entity>".
+allowed-tools:
+  - get_hunting_schema  # for schema discovery
+  - run_hunting_query   # for executing KQL queries against the tenant
+  - microsoft_docs_fetch  # for fetching official Defender Advanced Hunting docs (if configured)
+  - web_read  # fallback for fetching docs if microsoft_docs_fetch isn't available
+  - Read(references/**)
+  - Write(references/tables/**)
 ---
 
 # Defender Advanced Hunting — KQL Guidance
@@ -17,12 +24,17 @@ You have access to two MCP tools:
 
 ## Before writing any query
 
-**For any table you haven't used in this session**, do both of these before writing the real query:
+**For any table you haven't used in this session**, do all of these before writing the real query:
 
 1. `get_hunting_schema(table_name="<TableName>")` — get column names and types
 2. `run_hunting_query("TableName | take 3")` — see real data shapes and value formats
+3. **Read `references/tables/<TableName>.md`** if it exists — accumulated learnings about column types, gotchas, and high-value columns that are not obvious from the schema alone. Do steps 1–3 in parallel.
 
 This is especially important for tables with `dynamic` columns (bags of key/value pairs whose keys aren't visible in the schema). Skipping this step leads to queries that look valid but return nothing.
+
+The base directory for this skill is `!{CLAUDE_SKILL_DIR}`.
+
+**When you discover something surprising** — an unexpected column type, a column whose values are much larger than expected, a field name that differs from what the schema implies, behaviour that contradicts what you'd assume — write it to `references/tables/<TableName>.md` immediately (create the file if it doesn't exist). Tersely state what IS (leave reasoning freedom for future AI readers), and when relevant, a minimal KQL example showing working pattern. This keeps the knowledge base growing across sessions. Document audience is yourself, the AI agent.
 
 **For tables with complex dynamic columns** — particularly `ExposureGraphNodes`, `ExposureGraphEdges`, `AIAgentsInfo`, `CloudAppEvents` — also fetch the live Microsoft reference for that table. The docs help with column types and general structure; for dynamic columns like `NodeProperties` whose keys aren't enumerated in the docs, the `take 3` live sample (step 2 above) remains essential.
 
@@ -34,7 +46,7 @@ https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-<tablename-lower
 Fetch docs using whichever method is available, in priority order:
 
 **1. MS Learn MCP** (best — structured markdown, no !INCLUDE gaps):
-Look for a tool named `microsoft_docs_fetch` in your available tools (it may be prefixed `mcp__microsoft-learn__` or similar depending on how the user registered it). Call it with the learn.microsoft.com URL above.
+Look for a tool named `microsoft_docs_fetch` in your available tools. Call it with the learn.microsoft.com URL above.
 If not yet configured, suggest the user add it — it's public, no auth needed:
 ```bash
 claude mcp add --transport http microsoft-learn https://learn.microsoft.com/api/mcp
@@ -47,7 +59,7 @@ https://raw.githubusercontent.com/MicrosoftDocs/defender-docs/public/defender-xd
 ```
 Caveat: `!INCLUDE` directives appear as literal text rather than being expanded. For most table reference pages the core schema content is inline, so this is usually fine.
 
-**3. `web_read`** (web-utility-belt MCP) — fetch the rendered HTML page as a last resort.
+**3. `web_read`** (web-utility-belt MCP) — fetch the markdown-ified page as a last resort.
 
 ---
 
@@ -129,13 +141,39 @@ TableB | where ...
 | extend val = tostring(props.rawData.exposureScore)
 ```
 
+**`ReportId` uniqueness differs by table family** — two completely different semantics, same column name:
+
+| Table family | Type | Unique? | Join key |
+|---|---|---|---|
+| All `Device*` tables (MDE-sourced) | `long` | **No** — local counter | `ReportId` + `DeviceName` + `Timestamp` |
+| `Email*`, `Identity*`, `CloudAppEvents`, `UrlClickEvents` (MDO/MDI/MDCA) | `string` (GUID) | Yes — globally unique per event | `ReportId` alone is safe |
+
+Device tables with `ReportId: long` (all require the three-column composite for safe joins):
+`DeviceEvents`, `DeviceFileEvents`, `DeviceProcessEvents`, `DeviceLogonEvents`, `DeviceRegistryEvents`, `DeviceImageLoadEvents`, `DeviceNetworkEvents`, `DeviceNetworkInfo`, `DeviceInfo`, `DeviceFileCertificateInfo`
+
+Tables with **no** `ReportId`: `AlertInfo`, `AlertEvidence`, `DeviceTvmSoftwareInventory`, `DeviceTvmSoftwareVulnerabilities`, `DeviceTvmSecureConfigurationAssessment` — these use `AlertId`, `DeviceId+CveId`, etc.
+
+```kql
+// WRONG — joining Device tables on ReportId alone gives duplicate explosion
+DeviceNetworkEvents
+| join kind=inner AlertEvidence on ReportId
+
+// RIGHT for Device tables
+DeviceNetworkEvents
+| join kind=inner AlertEvidence on ReportId, DeviceName, Timestamp
+
+// OK for email/identity tables — ReportId is a GUID and globally unique
+EmailEvents
+| join kind=inner EmailAttachmentInfo on ReportId
+```
+
 ---
 
 ## General KQL hygiene
 
-**Time filter** — always include one; default to last 7 days unless the user specifies otherwise:
+**Time filter** — always include one; default to last 3 days unless the user specifies otherwise:
 ```kql
-| where Timestamp > ago(7d)
+| where Timestamp > ago(3d)
 ```
 
 **Limit columns** — use `project` to return only what's needed; Defender tables are wide and raw rows waste context:
@@ -165,10 +203,12 @@ The tenant has these notable tables that may need extra care:
 
 | Table | Notes |
 |-------|-------|
-| `AIAgentsInfo` | Copilot Studio / AI agent inventory. `AgentToolsDetails`, `KnowledgeDetails`, `ConnectedAgentsSchemaNames` are dynamic — sample first. Data is sparse/snapshot-style — `ago(7d)` typically returns 0 rows; use `ago(90d)` or omit the time filter. |
+| `AIAgentsInfo` | Copilot Studio / AI agent inventory. `AgentToolsDetails`, `KnowledgeDetails`, `ConnectedAgentsSchemaNames` are dynamic — sample first. Data is sparse/snapshot-style — `ago(3d)` typically returns 0 rows; use `ago(90d)` or omit the time filter. |
+| `DeviceNetworkEvents` | See `references/tables/DeviceNetworkEvents.md`. Key gotchas: `Protocol` has both `"Tcp"` and `"TcpV4"` — use `startswith "Tcp"` not `== "Tcp"`; `ConnectionSuccess` ≠ allowed (network protection blocks post-handshake); `AdditionalFields` is double-serialized JSON string; inbound rows have no initiating process context. `ReportId` non-uniqueness: see "ReportId uniqueness" section above. |
 | `EntraIdSignInEvents` | GA replacement for `AADSignInEventsBeta`. Has `GatewayJA4` (TLS fingerprint) and `IsSignInThroughGlobalSecureAccess` — tenant uses Global Secure Access. |
 | `ExposureGraphNodes/Edges` | Security Exposure Management graph. `NodeProperties` keys vary by `NodeLabel` — the official docs don't enumerate them; always live-sample with `take 3` first. |
-| `GraphAPIAuditEvents` | MS Graph API audit log. `RequestUri` + `Scopes` + `TargetWorkload` are the key hunting columns. |
+| `GraphAPIAuditEvents` | MS Graph API audit log. `RequestUri` + `Scopes` + `TargetWorkload` are the key hunting columns. See `references/tables/GraphAPIAuditEvents.md` for column type gotchas (`RequestDuration`, `RequestUri` size). |
+| `OAuthAppInfo` | OAuth app inventory. See `references/tables/OAuthAppInfo.md` — key field is `OAuthAppId`; table is snapshot-based (one row per app per day). |
 | `MessageEvents` | Teams message security events (not email — that's `EmailEvents`). |
 | `CloudStorageAggregatedEvents` | Aggregated Azure storage access; note `DataAggregationStartTime/EndTime` rather than a single `Timestamp`. |
 | `AADSignInEventsBeta` | Still present alongside `EntraIdSignInEvents`; prefer the Entra table for new queries. |
