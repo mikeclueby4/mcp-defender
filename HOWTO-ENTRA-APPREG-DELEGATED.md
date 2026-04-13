@@ -4,12 +4,21 @@ This guide configures a **public client** app registration in Entra ID so that
 `mcp-defender` can authenticate as the signed-in user (delegated auth) without
 requiring a certificate or client secret.
 
+> **API migration note (Feb 2027 deadline):** This server now uses the
+> **Microsoft Graph Security API** (`graph.microsoft.com/v1.0/security/runHuntingQuery`)
+> instead of the old `api.security.microsoft.com/api/advancedhunting/run` endpoint,
+> which Microsoft retired on February 6, 2026 (stops returning data February 1, 2027).
+> The required permission has changed from `AdvancedHunting.Read` (Microsoft Threat
+> Protection) to `ThreatHunting.Read.All` (Microsoft Graph). If you have an existing
+> app registration with only `AdvancedHunting.Read`, follow step 4 below to add the
+> new permission.
+
 **Prerequisites:**
 - To create the app registration and grant admin consent in step 4, you need one
   of: **Cloud Application Administrator**, Application Administrator,
   Privileged Role Administrator, or Global Administrator.
-  (`AdvancedHunting.Read` is a Microsoft Threat Protection delegated permission,
-  not a Microsoft Graph app role, so Cloud Application Administrator is sufficient.)
+  (`ThreatHunting.Read.All` is a Microsoft Graph delegated permission,
+  so Cloud Application Administrator is sufficient.)
 - The signed-in user must have **Security Reader** (or equivalent Defender
   "View Data" role) in the tenant.
 
@@ -73,48 +82,68 @@ also elect to set a Conditional Access policy for the enterprise app.
 
 ---
 
-## 4. Add the API permission
+## 4. Add the API permissions
+
+### 4a. Microsoft Graph — Advanced Hunting (required)
 
 14. Go back to **App registrations** → select your app
 15. Click **API permissions → Add a permission**
-16. Select the **APIs my organization uses** tab
-17. Search for **Microsoft Threat Protection** and select it
+16. Select **Microsoft Graph**
+17. Choose **Delegated permissions**
+18. Search for and tick **`ThreatHunting.Read.All`**
+19. Click **Add permissions**
 
-> 💡 **Microsoft Threat Protection** is the legacy display name for the Defender
-> XDR service principal that owns `api.security.microsoft.com`. Do not confuse it
-> with **Microsoft Defender for Endpoint**, which is a separate service principal
-> for the older `api.securitycenter.microsoft.com` endpoint. Picking the wrong one
-> will result in tokens that are accepted by the wrong API and rejected by this
-> server.
+> 💡 `ThreatHunting.Read.All` is the Graph Security API permission for Advanced
+> Hunting. It covers both Defender XDR tables and — when a Sentinel workspace is
+> onboarded to the unified Defender portal — Sentinel tables. This permission
+> replaced the old `AdvancedHunting.Read` on `Microsoft Threat Protection`
+> (api.security.microsoft.com), which is retired.
 
-18. Choose **Delegated permissions**
-19. Tick **`AdvancedHunting.Read`** (Run advanced queries)
-20. Click **Add permissions**
+### 4b. Log Analytics API — Sentinel queries (optional)
 
-> 💡 Delegated tokens carry the granted scopes in the `scp` claim (e.g.
-> `AdvancedHunting.Read`), while application tokens use the `roles` claim. The
-> Defender API validates these separately — `user_impersonation` alone (what the
-> Azure CLI's built-in app provides) is never accepted as a substitute for
-> `AdvancedHunting.Read`.
+Only needed if you want to use `run_sentinel_query` / `get_sentinel_tables` to query
+Sentinel tables that are *not* surfaced in Defender Advanced Hunting (CommonSecurityLog,
+Syslog, custom tables, Auxiliary/Basic logs), or if your workspace is not onboarded to
+the Defender portal.
+
+20. Click **Add a permission** again
+21. Select the **APIs my organization uses** tab
+22. Search for **Log Analytics API** and select it
+23. Choose **Delegated permissions**
+24. Tick **`Data.Read`**
+25. Click **Add permissions**
+
+Additionally, assign the signed-in user the **Reader** role (or **Log Analytics Reader**)
+on the Log Analytics workspace in Azure portal → the workspace's **Access control (IAM)**.
 
 ---
 
 ## 5. Grant admin consent
 
-21. Back on the **API permissions** page, click
+26. Back on the **API permissions** page, click
     **Grant admin consent for [your tenant]**
-22. Confirm by clicking **Yes**
-23. The Status column for `AdvancedHunting.Read` should show a green tick
+27. Confirm by clicking **Yes**
+28. The Status column for `ThreatHunting.Read.All` (and `Data.Read` if added) should
+    show a green tick
 
-> 💡 Admin consent is not optional here. `AdvancedHunting.Read` is hardcoded
-> `adminConsentRequired: true` in the Microsoft Threat Protection service principal
-> manifest — individual users cannot consent to it regardless of the tenant's user
-> consent policy. This is independent of the July 2025 change where Microsoft
-> tightened *default* user consent policies across tenants; that change affects
-> lower-privilege permissions, not security data permissions like this one.
->
-> Cloud Application Administrator is sufficient for this step — Global Admin is
-> not required, since `AdvancedHunting.Read` is not a Microsoft Graph app role.
+> 💡 Admin consent is not optional for `ThreatHunting.Read.All`. It is hardcoded
+> `adminConsentRequired: true` in the Microsoft Graph service principal manifest —
+> individual users cannot consent to it regardless of the tenant's user consent
+> policy. Cloud Application Administrator is sufficient for this step.
+
+---
+
+## 4-legacy. Migrating from the old AdvancedHunting.Read permission
+
+If you have an existing app registration with `AdvancedHunting.Read` on
+**Microsoft Threat Protection** (`api.security.microsoft.com`):
+
+- Add the new `ThreatHunting.Read.All` permission on **Microsoft Graph** (step 4a above)
+- Grant admin consent
+- The old `AdvancedHunting.Read` permission can be removed after confirming the new API
+  works — it is harmless to leave it, but it will stop being used after February 1, 2027
+- Delete `~/.mcp-defender-auth-record.json` so the server re-authenticates and picks up
+  the new scope on first run
 
 ---
 
@@ -178,8 +207,8 @@ instead, which is not affected by that policy.
 ## Why are you not explaining Certificate / Client Secret setup?
 
 Service principal credentials (certificate or client secret) require the **Application**
-permission `AdvancedQuery.Read.All`, which grants tenant-wide Advanced Hunting access
-with no per-user RBAC enforcement. Any process that holds the credential can query all
+permission `ThreatHunting.Read.All` on Microsoft Graph, which grants tenant-wide Advanced
+Hunting access with no per-user RBAC enforcement. Any process that holds the credential can query all
 device, identity, email, and cloud app data across the entire organisation — there is no
 "the user only sees what they're entitled to" safety net. That is a significant blast
 radius for a developer tool.

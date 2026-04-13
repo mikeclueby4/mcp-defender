@@ -8,20 +8,42 @@ description: >
   "defender-kql" explicitly. Also invoke for questions like "show me devices that...",
   "find sign-ins from...", "hunt for...", or "what happened to <entity>".
 allowed-tools:
-  - get_hunting_schema  # for schema discovery
-  - run_hunting_query   # for executing KQL queries against the tenant
-  - microsoft_docs_fetch  # for fetching official Defender Advanced Hunting docs (if configured)
-  - web_read  # fallback for fetching docs if microsoft_docs_fetch isn't available
-  - WebFetch(domain:raw.githubusercontent.com, path:raw/MicrosoftDocs/defender-docs/public/defender-xdr/advanced-hunting-*-table.md)  # direct fetch of markdown docs as last resort
+  - get_hunting_schema   # Defender Advanced Hunting schema discovery
+  - run_hunting_query    # Defender XDR + Sentinel (when workspace onboarded) KQL via Graph API
+  - run_sentinel_query   # Sentinel-only tables via Log Analytics API (if SENTINEL_WORKSPACE_ID set)
+  - get_sentinel_tables  # list Log Analytics workspace tables (if SENTINEL_WORKSPACE_ID set)
+  - microsoft_docs_fetch # for fetching official Defender Advanced Hunting docs (if configured)
+  - web_read             # fallback for fetching docs if microsoft_docs_fetch isn't available
+  - WebFetch(domain:raw.githubusercontent.com, path:raw/MicrosoftDocs/**)  # direct fetch of markdown docs as last resort
   - Read(references/**)
   - Write(references/tables/**)
 ---
 
-# Defender Advanced Hunting — KQL Guidance
+# Defender Advanced Hunting & Sentinel — KQL Guidance
 
-You have access to two MCP tools:
-- `get_hunting_schema` — fetch table schema (optionally with `table_name` for column detail)
-- `run_hunting_query` — execute KQL against the tenant
+You have access to these MCP tools (some conditional on server config):
+- `get_hunting_schema` — fetch Defender Advanced Hunting table schema
+- `run_hunting_query` — execute KQL via the **Microsoft Graph Security API** (`graph.microsoft.com/v1.0/security/runHuntingQuery`); covers all Defender XDR tables plus Sentinel tables when a workspace is onboarded to the unified Defender portal
+- `run_sentinel_query` — execute KQL via the **Log Analytics API** (`api.loganalytics.azure.com`); only present if `SENTINEL_WORKSPACE_ID` is configured
+- `get_sentinel_tables` — list all tables in the Log Analytics workspace; only present if `SENTINEL_WORKSPACE_ID` is configured
+
+## Which tool to use
+
+| Data you need | Use |
+|---|---|
+| Device*, Email*, Identity*, CloudApp*, AI* (XDR tables) | `run_hunting_query` |
+| SecurityAlert, SecurityIncident, AAD*, AuditLogs, SigninLogs, SecurityEvent | `run_sentinel_query` |
+| CommonSecurityLog, Syslog, custom tables, Auxiliary/Basic logs | `run_sentinel_query` |
+| Workspace **not** onboarded to the Defender portal | `run_sentinel_query` |
+| Data older than 30 days (beyond Defender retention) | `run_sentinel_query` |
+
+**Important**: Even when a Sentinel workspace is onboarded to the Defender portal, Sentinel-sourced tables (`SecurityIncident`, `SecurityAlert`, `AAD*`, etc.) return **empty results** via `run_hunting_query` — the Graph API silently filters them due to RBAC or backend routing. Always use `run_sentinel_query` for these tables. `get_hunting_schema()` may list them (they appear in schema discovery) but that does not mean they are queryable via `run_hunting_query`.
+
+When unsure which tool: try `get_sentinel_tables` first — if the table is listed there, use `run_sentinel_query`. If not found there, use `run_hunting_query`.
+
+`getschema` works in both:
+- `run_hunting_query("TableName | getschema")` for Defender tables
+- `run_sentinel_query("TableName | getschema")` for Log Analytics tables
 
 ## Before writing any query
 
@@ -214,4 +236,57 @@ The tenant has these notable tables that may need extra care:
 | `OAuthAppInfo` | OAuth app inventory. See `references/tables/OAuthAppInfo.md` — key field is `OAuthAppId`; table is snapshot-based (one row per app per day). |
 | `MessageEvents` | Teams message security events (not email — that's `EmailEvents`). |
 | `CloudStorageAggregatedEvents` | Aggregated Azure storage access; note `DataAggregationStartTime/EndTime` rather than a single `Timestamp`. |
-| `AADSignInEventsBeta` | Still present alongside `EntraIdSignInEvents`; prefer the Entra table for new queries. |
+| `EntraIdSignInEvents` | **Defender table — returns empty via `run_hunting_query` in this tenant** (silent RBAC filter, same as SecurityIncident). Use `SigninLogs` + `AADNonInteractiveUserSignInLogs` via `run_sentinel_query` instead. Schema differs: `Timestamp` not `TimeGenerated`, columns like `AccountUpn`/`EntraIdDeviceId`. |
+| `AADSignInEventsBeta` | Deprecated Dec 9, 2025 — replaced by `EntraIdSignInEvents`. Also returns empty via `run_hunting_query`. Do not use for new queries. |
+
+## Entra ID / AAD sign-in table family
+
+Two completely separate families with overlapping data — do not confuse them:
+
+**Defender Advanced Hunting** (`run_hunting_query`) — XDR-native, `Timestamp`, flat schema:
+- `EntraIdSignInEvents` — replaces `AADSignInEventsBeta` (Dec 2025); covers both interactive and non-interactive in one table
+- ⚠️ **Both return empty in this tenant** — use Sentinel tables below instead
+
+**Sentinel / Log Analytics** (`run_sentinel_query`) — Azure Monitor diagnostic tables, `TimeGenerated`, richer schema, confirmed live as of 2026-04:
+
+| Table | Covers | Cadence |
+|---|---|---|
+| `SigninLogs` | Interactive user sign-ins only | Live (minutes) |
+| `AADNonInteractiveUserSignInLogs` | Non-interactive (token refresh, background) | Live (minutes) |
+| `AADServicePrincipalSignInLogs` | Service principal sign-ins | Live (minutes) |
+| `AADManagedIdentitySignInLogs` | Managed identity sign-ins | Live (minutes) |
+| `AADProvisioningLogs` | Provisioning events | Live (hourly) |
+| `AADRiskyUsers` | Identity Protection risky user state | Live (hours) |
+| `AADUserRiskEvents` | Identity Protection risk detections | ⚠️ Last seen 2026-03-20 — may be stale or quiet |
+| `AuditLogs` | Entra directory audit (user/group/app changes) | Live (minutes) |
+
+For comprehensive interactive + non-interactive sign-in coverage via Sentinel:
+```kql
+union SigninLogs, AADNonInteractiveUserSignInLogs
+| where TimeGenerated > ago(1d)
+| project TimeGenerated, UserPrincipalName, AppDisplayName, ResultType, IPAddress, Location
+```
+
+## Sentinel Log Analytics tables (`run_sentinel_query`)
+
+When `SENTINEL_WORKSPACE_ID` is set, the following tables are available via `run_sentinel_query`. Use `run_sentinel_query("<Table> | getschema")` to see columns. Unlike Defender tables, these use `TimeGenerated` not `Timestamp` as the time column.
+
+```
+AADManagedIdentitySignInLogs   AADNonInteractiveUserSignInLogs  AADProvisioningLogs
+AADRiskyUsers                  AADServicePrincipalSignInLogs    AADUserRiskEvents
+AlertEvidence                  AlertInfo                        Anomalies
+AuditLogs                      AzureActivity                    BehaviorAnalytics
+CloudAppEvents                 DeviceEvents                     DeviceFileCertificateInfo
+DeviceFileEvents               DeviceImageLoadEvents            DeviceInfo
+DeviceLogonEvents              DeviceNetworkEvents              DeviceNetworkInfo
+DeviceProcessEvents            DeviceRegistryEvents             EmailAttachmentInfo
+EmailEvents                    EmailPostDeliveryEvents          EmailUrlInfo
+Heartbeat                      IdentityDirectoryEvents          IdentityInfo
+IdentityLogonEvents            IdentityQueryEvents              MicrosoftPurviewInformationProtection
+OfficeActivity                 Operation                        SecurityAlert
+SecurityEvent                  SecurityIncident                 SentinelAudit
+SentinelHealth                 SigninLogs                       ThreatIntelIndicators
+UrlClickEvents                 Usage                            UserPeerAnalytics
+```
+
+Note: many of these are duplicates of Defender XDR tables (Defender ingests into Sentinel). For XDR tables, `run_hunting_query` has richer query support and fresher data; `run_sentinel_query` gives access to longer retention and older data.
