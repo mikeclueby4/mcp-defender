@@ -1,22 +1,33 @@
 [project]
 name = "mcp-msdefenderkql"
-version = "1.0.0"
-description = "MCP server for Microsoft Defender Advanced Hunting - execute KQL queries via natural language"
+version = "2.0.0"
+description = "MCP server for Microsoft Defender Advanced Hunting and Microsoft Sentinel - execute KQL queries via natural language"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "trickyfalcon", email = "trickyfalcon@users.noreply.github.com" }
+    { name = "mikeclueby4", email = "mikeclueby4@users.noreply.github.com" }
 ]
 keywords = [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
     "microsoft-defender",
+    "microsoft-defender-xdr",
+    "defender-xdr",
+    "defender-for-endpoint",
+    "microsoft-sentinel",
+    "sentinel",
     "advanced-hunting",
+    "threat-hunting",
     "kql",
+    "kusto",
+    "log-analytics",
+    "azure",
     "security",
     "siem",
-    "threat-hunting",
+    "xdr",
+    "soc",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -42,9 +53,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/trickyfalcon/mcp-defender"
-Repository = "https://github.com/trickyfalcon/mcp-defender"
-Issues = "https://github.com/trickyfalcon/mcp-defender/issues"
+Homepage = "https://github.com/mikeclueby4/mcp-defender"
+Repository = "https://github.com/mikeclueby4/mcp-defender"
+Issues = "https://github.com/mikeclueby4/mcp-defender/issues"
 
 [project.optional-dependencies]
 dev = [

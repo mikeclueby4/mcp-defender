@@ -52,12 +52,3 @@ HOWTO-ENTRA-APPREG-DELEGATED.md  # Step-by-step Entra ID app registration guide 
 
 `.claude/skills/defender-kql-workspace/` — skill evaluation suite. Contains `evals.json`, 3 iterations of 6 evals each (with/without skill), and HTML benchmark reviews. Run evals with `model=sonnet-4.6` and `effort=low`; view HTML results with `start <path>.html` on Windows.
 
-## Commands (or `uv` equivalents)
-
-```bash
-pip install -e ".[dev]"   # install with dev deps
-mcp-msdefenderkql         # run the server
-pytest                    # run tests (no live API needed)
-ruff check .              # lint
-mypy src                  # type check
-```
