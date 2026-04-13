@@ -15,8 +15,8 @@ allowed-tools:
   - microsoft_docs_fetch # for fetching official Defender Advanced Hunting docs (if configured)
   - web_read             # fallback for fetching docs if microsoft_docs_fetch isn't available
   - WebFetch(domain:raw.githubusercontent.com, path:raw/MicrosoftDocs/**)  # direct fetch of markdown docs as last resort
-  - Read(references/**)
-  - Write(references/tables/**)
+  - Read({baseDir}/references/**)
+  - Write({baseDir}/references/tables/**)
 ---
 
 # Defender Advanced Hunting & Sentinel — KQL Guidance
@@ -55,7 +55,7 @@ When unsure which tool: try `get_sentinel_tables` first — if the table is list
 
 This is especially important for tables with `dynamic` columns (bags of key/value pairs whose keys aren't visible in the schema). Skipping this step leads to queries that look valid but return nothing.
 
-The base directory for this skill is `!{CLAUDE_SKILL_DIR}`.
+The base directory for this skill is `!echo ${CLAUDE_SKILL_DIR}`.
 
 **When you discover something surprising** — an unexpected column type, a column whose values are much larger than expected, a field name that differs from what the schema implies, behaviour that contradicts what you'd assume — write it to `references/tables/<TableName>.md` immediately (create the file if it doesn't exist). Tersely state what IS (leave reasoning freedom for future AI readers), and when relevant, a minimal KQL example showing working pattern. This keeps the knowledge base growing across sessions. Document audience is yourself, the AI agent.
 
