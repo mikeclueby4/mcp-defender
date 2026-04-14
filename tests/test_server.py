@@ -115,7 +115,7 @@ async def test_run_hunting_query_small_result_no_overflow():
     lines = text.splitlines()
 
     assert lines[0] == "LineNum\tLoremIpsum"
-    data_lines = [l for l in lines[1:] if l and not l.startswith("execution_time=") and not l.startswith("rows_total=")]
+    data_lines = [l for l in lines[1:] if l]
     for line in data_lines:
         assert line.count("\t") == 1, f"Expected 1 tab in: {line!r}"
     assert not any("[MCP-DEFENDER:OVERFLOW]" in l for l in lines)
@@ -147,7 +147,7 @@ async def test_run_hunting_query_large_result_overflow():
     assert rows_shown + rows_omitted + 1 == rows_total
     assert rows_shown >= 1
 
-    last_line = lines[-1] if not lines[-1].startswith("execution_time=") and not lines[-1].startswith("rows_total=") else lines[-2]
+    last_line = lines[-1]
     assert last_line.count("\t") == 1
 
     inline_lines = lines[: lines.index(sentinel)]
@@ -174,7 +174,7 @@ async def test_run_sentinel_query_small_result_no_overflow():
     lines = text.splitlines()
 
     assert lines[0] == "LineNum\tLoremIpsum"
-    data_lines = [l for l in lines[1:] if l and not l.startswith("rows_total=")]
+    data_lines = [l for l in lines[1:] if l]
     for line in data_lines:
         assert line.count("\t") == 1, f"Expected 1 tab in: {line!r}"
     assert not any("[MCP-DEFENDER:OVERFLOW]" in l for l in lines)
