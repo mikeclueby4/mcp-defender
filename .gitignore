@@ -1,4 +1,4 @@
-# Credentials and secrets - NEVER commit these
+# Credentials, local config, and secrets - NEVER commit these
 .env
 .env.local
 !.env.example
@@ -9,6 +9,7 @@
 *.crt
 *.cer
 .mcpregistry_*
+**/*.local.*
 
 # Project-specific excludes
 *.txt
@@ -61,4 +62,4 @@ htmlcov/
 
 # ruff
 .ruff_cache/
-**/*.local.*
+
