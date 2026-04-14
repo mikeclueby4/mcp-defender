@@ -1,6 +1,7 @@
 ---
 paths:
   - README.md
+  - .env.example
 ---
 
-When `README.md` is edited, check whether `.env.example` needs updating to stay in sync (e.g. new or renamed environment variables).
+When either `README.md` or `.env.example` is edited, check whether the other needs updating to stay in sync (e.g. new or renamed environment variables).

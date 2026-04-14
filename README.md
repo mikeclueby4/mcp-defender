@@ -60,26 +60,24 @@ See [HOWTO-ENTRA-APPREG-DELEGATED.md](HOWTO-ENTRA-APPREG-DELEGATED.md) for step-
 ## Configuration
 
 1. Copy `.env.example` to `.env`
-2. Fill in your Azure AD credentials:
+2. Fill in your Azure AD credentials and workspace ID:
 
 ```bash
-# Option 1: Interactive browser — opens a browser for sign-in on first use (recommended)
-# Requires a public client app registration. See HOWTO-ENTRA-APPREG-DELEGATED.md.
+# Required: Azure AD app registration
 AZURE_TENANT_ID=your-tenant-id
 AZURE_CLIENT_ID=your-client-id
 
-# Option 2: Certificate authentication (service principal / no user required)
-AZURE_TENANT_ID=your-tenant-id
-AZURE_CLIENT_ID=your-client-id
-AZURE_CLIENT_CERTIFICATE_PATH=/path/to/combined.pem
-
-# Option 3: Client secret (service principal / no user required)
-AZURE_TENANT_ID=your-tenant-id
-AZURE_CLIENT_ID=your-client-id
-AZURE_CLIENT_SECRET=your-client-secret
-
-# Optional: Microsoft Sentinel (enables run_sentinel_query + get_sentinel_tables)
+# Microsoft Sentinel — add your Log Analytics workspace ID to enable Sentinel queries
+# (Azure Portal → Log Analytics workspaces → your workspace → Overview → Workspace ID)
 SENTINEL_WORKSPACE_ID=your-log-analytics-workspace-id
+
+# Authentication — choose ONE, or leave both unset for interactive browser sign-in (recommended)
+
+# Option A: Certificate (service principal)
+# AZURE_CLIENT_CERTIFICATE_PATH=/path/to/combined.pem
+
+# Option B: Client secret (service principal)
+# AZURE_CLIENT_SECRET=your-client-secret
 ```
 
 For certificate auth, combine your private key and certificate:
@@ -100,7 +98,7 @@ pip install git+https://github.com/mikeclueby4/mcp-defender
 
 ## Usage
 
-### Running the server
+### Running the server (which your AI agent normally does)
 
 ```bash
 # After installing with uv tool install / pip install:
@@ -151,8 +149,8 @@ Add to your MCP settings. Use the `uvx` form so no prior install step is needed:
 }
 ```
 
-For certificate auth, add `"AZURE_CLIENT_CERTIFICATE_PATH": "/path/to/combined.pem"` to `env`.  
-For Sentinel, add `"SENTINEL_WORKSPACE_ID": "your-workspace-id"` to `env`.
+Add `"SENTINEL_WORKSPACE_ID": "your-workspace-id"` to `env` to enable Sentinel queries.  
+For certificate auth, also add `"AZURE_CLIENT_CERTIFICATE_PATH": "/path/to/combined.pem"`.
 
 ## Available Tools
 
@@ -208,6 +206,7 @@ The skill provides expert guidance for writing KQL against Defender Advanced Hun
 - Defender-specific KQL syntax differences from standard ADX (no ternary, `let`+`join` limitations, double-serialized dynamic columns)
 - Table-specific notes for `AIAgentsInfo`, `ExposureGraphNodes`, `EntraIdSignInEvents`, and others
 - Entra/AAD table family split between Defender and Sentinel
+- **Auto-updating its own reference documentation** on "surprises" learned during operation.
 
 The [`.claude/skills/defender-kql-workspace/`](.claude/skills/defender-kql-workspace/) folder contains the skill evaluation suite (6 evals across 3 iterations) used to measure and tune the skill.
 
