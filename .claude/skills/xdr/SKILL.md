@@ -8,10 +8,9 @@ description: >
   "xdr" explicitly. Also invoke for questions like "show me devices that...",
   "find sign-ins from...", "hunt for...", or "what happened to <entity>".
 allowed-tools:
-  - get_hunting_schema   # Defender Advanced Hunting schema discovery
+  - get_schema           # unified schema discovery: table listing + per-table schema+samples (both sources)
   - run_hunting_query    # Defender XDR + Sentinel (when workspace onboarded) KQL via Graph API
   - run_sentinel_query   # Sentinel-only tables via Log Analytics API (if SENTINEL_WORKSPACE_ID set)
-  - get_sentinel_tables  # list Log Analytics workspace tables (if SENTINEL_WORKSPACE_ID set)
   - microsoft_docs_fetch # for fetching official Defender Advanced Hunting docs (if configured)
   - web_read             # fallback for fetching docs if microsoft_docs_fetch isn't available
   - WebFetch(domain:raw.githubusercontent.com, path:raw/MicrosoftDocs/**)  # direct fetch of markdown docs as last resort
@@ -23,10 +22,11 @@ allowed-tools:
 # Defender Advanced Hunting & Sentinel — KQL Guidance
 
 You have access to these MCP tools (some conditional on server config):
-- `get_hunting_schema` — fetch Defender Advanced Hunting table schema
+- `get_schema` — unified schema discovery:
+  - No args: lists all tables across Defender + Sentinel as TSV (`Table`, `Defender`, `Sentinel`, `SentinelLastSeen`, `SentinelMB`). `SentinelLastSeen`/`SentinelMB` come from the Log Analytics `Usage` table (30-day window, hourly granularity).
+  - With `table_name`: returns full column schema (`ColumnName`, `ColumnType`) + up to 3 sample rows. Queries both sources by default; use `source="defender"` or `source="sentinel"` to restrict.
 - `run_hunting_query` — execute KQL via the **Microsoft Graph Security API** (`graph.microsoft.com/v1.0/security/runHuntingQuery`); covers all Defender XDR tables plus Sentinel tables when a workspace is onboarded to the unified Defender portal
 - `run_sentinel_query` — execute KQL via the **Log Analytics API** (`api.loganalytics.azure.com`); only present if `SENTINEL_WORKSPACE_ID` is configured
-- `get_sentinel_tables` — list all tables in the Log Analytics workspace; only present if `SENTINEL_WORKSPACE_ID` is configured
 
 ## Which tool to use
 
@@ -38,9 +38,9 @@ You have access to these MCP tools (some conditional on server config):
 | Workspace **not** onboarded to the Defender portal | `run_sentinel_query` |
 | Data older than 30 days (beyond Defender retention) | `run_sentinel_query` |
 
-**Important**: Even when a Sentinel workspace is onboarded to the Defender portal, Sentinel-sourced tables (`SecurityIncident`, `SecurityAlert`, `AAD*`, etc.) return **empty results** via `run_hunting_query` — the Graph API silently filters them due to RBAC or backend routing. Always use `run_sentinel_query` for these tables. `get_hunting_schema()` may list them (they appear in schema discovery) but that does not mean they are queryable via `run_hunting_query`.
+**Important**: Even when a Sentinel workspace is onboarded to the Defender portal, Sentinel-sourced tables (`SecurityIncident`, `SecurityAlert`, `AAD*`, etc.) return **empty results** via `run_hunting_query` — the Graph API silently filters them due to RBAC or backend routing. Always use `run_sentinel_query` for these tables. They may appear in `get_schema()` listing with `Defender=yes` (schema discovery) but that does not mean they are queryable via `run_hunting_query`.
 
-When unsure which tool: try `get_sentinel_tables` first — if the table is listed there, use `run_sentinel_query`. If not found there, use `run_hunting_query`.
+When unsure which tool: call `get_schema()` with no args first — the `Defender` and `Sentinel` columns tell you exactly which source has the table. Tables with `Sentinel=yes` use `run_sentinel_query`; tables with only `Defender=yes` use `run_hunting_query`.
 
 `getschema` works in both:
 - `run_hunting_query("TableName | getschema")` for Defender tables
@@ -50,9 +50,8 @@ When unsure which tool: try `get_sentinel_tables` first — if the table is list
 
 **For any table you haven't used in this session**, do all of these before writing the real query:
 
-1. `get_hunting_schema(table_name="<TableName>")` — get column names and types
-2. `run_hunting_query("TableName | take 3")` — see real data shapes and value formats
-3. **Read `${CLAUDE_SKILL_DIR}/references/tables/<TableName>.md`** if it exists — accumulated learnings about column types, gotchas, and high-value columns that are not obvious from the schema alone. Do steps 1–3 in parallel.
+1. `get_schema(table_name="<TableName>")` — get column names, types, and up to 3 sample rows from all available sources in one call
+2. **Read `${CLAUDE_SKILL_DIR}/references/tables/<TableName>.md`** if it exists — accumulated learnings about column types, gotchas, and high-value columns that are not obvious from the schema alone. Do steps 1–2 in parallel.
 
 This is especially important for tables with `dynamic` columns (bags of key/value pairs whose keys aren't visible in the schema). Skipping this step leads to queries that look valid but return nothing.
 
@@ -242,15 +241,13 @@ Notable tables that may need extra care:
 |-------|-------|
 | `AIAgentsInfo` | Copilot Studio / AI agent inventory. `AgentToolsDetails`, `KnowledgeDetails`, `ConnectedAgentsSchemaNames` are dynamic — sample first. Data is sparse/snapshot-style — `ago(3d)` typically returns 0 rows; use `ago(90d)` or omit the time filter. |
 | `DeviceNetworkEvents` | See `references/tables/DeviceNetworkEvents.md`. Key gotchas: `Protocol` has both `"Tcp"` and `"TcpV4"` — use `startswith "Tcp"` not `== "Tcp"`; `ConnectionSuccess` ≠ allowed (network protection blocks post-handshake); `AdditionalFields` is double-serialized JSON string; inbound rows have no initiating process context. `ReportId` non-uniqueness: see "ReportId uniqueness" section above. |
-| `EntraIdSignInEvents` | GA replacement for `AADSignInEventsBeta`. Has `GatewayJA4` (TLS fingerprint) and `IsSignInThroughGlobalSecureAccess` (populated when Global Secure Access is deployed). |
+| `EntraIdSignInEvents` | GA replacement for `AADSignInEventsBeta`. Has `GatewayJA4` (TLS fingerprint) and `IsSignInThroughGlobalSecureAccess` (populated when Global Secure Access is deployed). Schema uses `Timestamp` not `TimeGenerated`; columns like `AccountUpn`/`EntraIdDeviceId`. If empty, fall back to `SigninLogs` + `AADNonInteractiveUserSignInLogs` via `run_sentinel_query`. |
 | `ExposureGraphNodes/Edges` | Security Exposure Management graph. `NodeProperties` keys vary by `NodeLabel` — the official docs don't enumerate them; always live-sample with `take 3` first. |
 | `GraphAPIAuditEvents` | MS Graph API audit log. `RequestUri` + `Scopes` + `TargetWorkload` are the key hunting columns. See `references/tables/GraphAPIAuditEvents.md` for column type gotchas (`RequestDuration`, `RequestUri` size). |
 | `OAuthAppInfo` | OAuth app inventory. See `references/tables/OAuthAppInfo.md` — key field is `OAuthAppId`; table is snapshot-based (one row per app per day). |
 | `MessageEvents` | Teams message security events (not email — that's `EmailEvents`). |
 | `CloudStorageAggregatedEvents` | Aggregated Azure storage access; note `DataAggregationStartTime/EndTime` rather than a single `Timestamp`. |
-| `EntraIdSignInEvents` | **Defender table — may return empty via `run_hunting_query`** due to silent RBAC filtering (same pattern as SecurityIncident in some tenants). If empty, use `SigninLogs` + `AADNonInteractiveUserSignInLogs` via `run_sentinel_query`. Schema differs: `Timestamp` not `TimeGenerated`, columns like `AccountUpn`/`EntraIdDeviceId`. Always verify via `Usage` table if results seem unexpectedly empty. |
-| `AADSignInEventsBeta` | Deprecated Dec 9, 2025 — replaced by `EntraIdSignInEvents`. May also return empty via `run_hunting_query`. Do not use for new queries. |
-| `Device*` tables (`DeviceNetworkEvents`, `DeviceEvents`, `DeviceInfo`, `DeviceProcessEvents`, etc.) | **May return empty via `run_hunting_query`** in some tenants due to silent RBAC/routing filters — despite being MDE-sourced XDR tables. If empty, try `run_sentinel_query`. Always verify with `Usage` if `run_hunting_query` returns unexpected empty results. |
+| `AADSignInEventsBeta` | Deprecated Dec 9, 2025 — replaced by `EntraIdSignInEvents`. Do not use for new queries. |
 | `NetworkAccessTraffic` | Global Secure Access (Entra Internet/Private Access) traffic log. Uses `TimeGenerated` not `Timestamp`. Rich columns: `Action`, `PolicyName`, `RuleName`, `DestinationFqdn`, `DestinationUrl`, `DestinationWebCategories`, `ThreatType`, `ConnectionStatus`, `UserPrincipalName`. Empty if GSA is not deployed or logs are not flowing. |
 
 ## Entra ID / AAD sign-in table family
@@ -259,7 +256,7 @@ Two completely separate families with overlapping data — do not confuse them:
 
 **Defender Advanced Hunting** (`run_hunting_query`) — XDR-native, `Timestamp`, flat schema:
 - `EntraIdSignInEvents` — replaces `AADSignInEventsBeta` (Dec 2025); covers both interactive and non-interactive in one table
-- ⚠️ **Both may return empty in some tenants** (silent RBAC filter) — use Sentinel tables below if so
+- ⚠️ **May return empty in some tenants** (silent RBAC/routing filter) — use Sentinel tables below if so
 
 **Sentinel / Log Analytics** (`run_sentinel_query`) — Azure Monitor diagnostic tables, `TimeGenerated`, richer schema, confirmed live as of 2026-04:
 

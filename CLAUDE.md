@@ -14,18 +14,19 @@ MCP server for Microsoft Defender Advanced Hunting and Microsoft Sentinel. Enabl
 
 ```
 src/mcp_xdr/server.py   # Entire server — credential init, token fetch, query execution, tool handlers
-tests/test_server.py         # Tool schema tests (no live API calls; mock-free, tests list_tools() only)
+tests/test_server.py         # Unit tests: tool schema, overflow logic, get_schema listing/per-table modes (mocked, no live API calls)
 pyproject.toml               # Entry point: mcp-xdr → mcp_xdr.server:main
 HOWTO-ENTRA-APPREG-DELEGATED.md  # Step-by-step Entra ID app registration guide for delegated auth
 ```
 
 ## Architecture
 
-**Tools exposed** (2 always present + 2 conditional on `SENTINEL_WORKSPACE_ID`):
+**Tools exposed** (2 always present + 1 conditional on `SENTINEL_WORKSPACE_ID`):
 - `run_hunting_query` — executes KQL via the **Microsoft Graph Security API** (`POST graph.microsoft.com/v1.0/security/runHuntingQuery`); returns TSV with a header row. Results over ~10 KB are truncated: a `[MCP-XDR:OVERFLOW]` sentinel line records counts and the path of a tmpfile containing the full result.
-- `get_hunting_schema` — fetches available Defender Advanced Hunting tables/columns from the same API
+- `get_schema` — unified schema discovery:
+  - No args: lists all tables across Defender + Sentinel as TSV (`Table`, `Defender`, `Sentinel`, `SentinelLastSeen`, `SentinelMB`). `SentinelLastSeen`/`SentinelMB` come from the Log Analytics `Usage` table.
+  - With `table_name`: returns column schema (`ColumnName`, `ColumnType` from `getschema`) + up to 3 sample rows, queried concurrently from all available sources. Optional `source` param (`"defender"` | `"sentinel"`) restricts to one source.
 - `run_sentinel_query` — executes KQL via the **Log Analytics API** (`POST api.loganalytics.azure.com/v1/workspaces/{id}/query`); same TSV/overflow output format. Only registered when `SENTINEL_WORKSPACE_ID` is set.
-- `get_sentinel_tables` — lists all tables in the Log Analytics workspace. Only registered when `SENTINEL_WORKSPACE_ID` is set.
 
 **Authentication priority in `get_credential()` — all require `AZURE_TENANT_ID` + `AZURE_CLIENT_ID`:**
 
