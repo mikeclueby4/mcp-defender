@@ -5,8 +5,8 @@ description: >
   Advanced Hunting via the mcp-xdr MCP server. Use this skill whenever the user
   asks about security events, threat hunting, investigating alerts, querying Defender
   tables, or anything involving KQL / Advanced Hunting — even if they don't say
-  "xdr" explicitly. Also invoke for questions like "show me devices that...",
-  "find sign-ins from...", "hunt for...", or "what happened to <entity>".
+  "xdr" explicitly. Also invoke for questions like "show me devices that…",
+  "find sign-ins from…", "hunt for…", or "what happened to <entity>".
 allowed-tools:
   - get_schema           # unified schema discovery: table listing + per-table schema+samples (both sources)
   - run_hunting_query    # Defender XDR + Sentinel (when workspace onboarded) KQL via Graph API
@@ -152,9 +152,9 @@ TableA
 | extend SpikeRatio = iff(todouble(Baseline) > 0, round(todouble(Recent) / todouble(Baseline), 2), todouble(999))
 
 // RIGHT for multi-table queries — run as separate queries
-TableA | where ...
+TableA | where …
 // -- and separately --
-TableB | where ...
+TableB | where …
 ```
 
 **Double-serialized dynamic columns** — some dynamic columns (e.g. `NodeProperties`, `AgentToolsDetails`) are stored as JSON-encoded strings, not native dynamic objects. Direct property access returns null; wrap with `tostring()` first:
@@ -200,8 +200,8 @@ When a user describes a problem rather than naming a table, read the relevant pl
 
 | Playbook | When to use |
 |---|---|
-| `references/investigations/connectivity.md` | User reports `ERR_CONNECTION_TIMED_OUT`, site unreachable, intermittent web access, "works from one location but not another", browser connectivity failures on a specific device |
-| `references/investigations/external-ti-apis.md` | Checking whether an IP, domain, or URL appears in external reputation/TI feeds; "is this IP known bad?"; "what ASN/country is this?"; "is this domain flagged?"; quick spot-check without querying Defender/Sentinel — covers keyless Tier 1 services and keyed Tier 2 services (AbuseIPDB, VirusTotal, GreyNoise, AlienVault OTX, IPQualityScore, IPinfo) |
+| `…/investigations/connectivity.md` | User reports `ERR_CONNECTION_TIMED_OUT`, site unreachable, intermittent web access, "works from one location but not another", browser connectivity failures on a specific device |
+| `…/investigations/external-ti-apis.md` | Checking whether an IP, domain, or URL appears in external reputation/TI feeds; "is this IP known bad?"; "what ASN/country is this?"; "is this domain flagged?"; quick spot-check without querying Defender/Sentinel — covers keyless Tier 1 services and keyed Tier 2 services (AbuseIPDB, VirusTotal, GreyNoise, AlienVault OTX, IPQualityScore, IPinfo) |
 
 ---
 
@@ -240,11 +240,11 @@ Notable tables that may need extra care:
 | Table | Notes |
 |-------|-------|
 | `AIAgentsInfo` | Copilot Studio / AI agent inventory. `AgentToolsDetails`, `KnowledgeDetails`, `ConnectedAgentsSchemaNames` are dynamic — sample first. Data is sparse/snapshot-style — `ago(3d)` typically returns 0 rows; use `ago(90d)` or omit the time filter. |
-| `DeviceNetworkEvents` | See `references/tables/DeviceNetworkEvents.md`. Key gotchas: `Protocol` has both `"Tcp"` and `"TcpV4"` — use `startswith "Tcp"` not `== "Tcp"`; `ConnectionSuccess` ≠ allowed (network protection blocks post-handshake); `AdditionalFields` is double-serialized JSON string; inbound rows have no initiating process context. `ReportId` non-uniqueness: see "ReportId uniqueness" section above. |
+| `DeviceNetworkEvents` | See `…/tables/DeviceNetworkEvents.md`. Key gotchas: `Protocol` has both `"Tcp"` and `"TcpV4"` — use `startswith "Tcp"` not `== "Tcp"`; `ConnectionSuccess` ≠ allowed (network protection blocks post-handshake); `AdditionalFields` is double-serialized JSON string; inbound rows have no initiating process context. `ReportId` non-uniqueness: see "ReportId uniqueness" section above. |
 | `EntraIdSignInEvents` | GA replacement for `AADSignInEventsBeta`. Has `GatewayJA4` (TLS fingerprint) and `IsSignInThroughGlobalSecureAccess` (populated when Global Secure Access is deployed). Schema uses `Timestamp` not `TimeGenerated`; columns like `AccountUpn`/`EntraIdDeviceId`. If empty, fall back to `SigninLogs` + `AADNonInteractiveUserSignInLogs` via `run_sentinel_query`. |
 | `ExposureGraphNodes/Edges` | Security Exposure Management graph. `NodeProperties` keys vary by `NodeLabel` — the official docs don't enumerate them; always live-sample with `take 3` first. |
-| `GraphAPIAuditEvents` | MS Graph API audit log. `RequestUri` + `Scopes` + `TargetWorkload` are the key hunting columns. See `references/tables/GraphAPIAuditEvents.md` for column type gotchas (`RequestDuration`, `RequestUri` size). |
-| `OAuthAppInfo` | OAuth app inventory. See `references/tables/OAuthAppInfo.md` — key field is `OAuthAppId`; table is snapshot-based (one row per app per day). |
+| `GraphAPIAuditEvents` | MS Graph API audit log. `RequestUri` + `Scopes` + `TargetWorkload` are the key hunting columns. See `…/tables/GraphAPIAuditEvents.md` for column type gotchas (`RequestDuration`, `RequestUri` size). |
+| `OAuthAppInfo` | OAuth app inventory. See `…/tables/OAuthAppInfo.md` — key field is `OAuthAppId`; table is snapshot-based (one row per app per day). |
 | `MessageEvents` | Teams message security events (not email — that's `EmailEvents`). |
 | `CloudStorageAggregatedEvents` | Aggregated Azure storage access; note `DataAggregationStartTime/EndTime` rather than a single `Timestamp`. |
 | `AADSignInEventsBeta` | Deprecated Dec 9, 2025 — replaced by `EntraIdSignInEvents`. Do not use for new queries. |
