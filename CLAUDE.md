@@ -17,6 +17,7 @@ src/mcp_xdr/server.py   # Entire server — credential init, token fetch, query 
 tests/test_server.py         # Unit tests: tool schema, overflow logic, get_schema listing/per-table modes (mocked, no live API calls)
 pyproject.toml               # Entry point: mcp-xdr → mcp_xdr.server:main
 HOWTO-ENTRA-APPREG-DELEGATED.md  # Step-by-step Entra ID app registration guide for delegated auth
+~/.mcp-xdr/logs/queries/     # Daily query logs (YYYY-MM-DD.md) — every tool call, query + result as seen by model
 ```
 
 ## Architecture

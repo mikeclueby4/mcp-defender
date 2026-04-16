@@ -11,15 +11,6 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "run_hunting_query|run_sentinel_query",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/remind-references.sh"
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit",
         "hooks": [
           {

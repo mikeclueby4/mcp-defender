@@ -13,6 +13,7 @@ Set SENTINEL_WORKSPACE_ID to enable Sentinel tools.
 """
 
 import asyncio
+import datetime
 import os
 import tempfile
 from pathlib import Path
@@ -61,6 +62,27 @@ INLINE_BYTE_LIMIT = 10_000 # ~10 KB - adjust as needed based on typical result s
 # Create a directory in the user's home folder for storing auth records, logs, tmpfiles, etc.
 xdr_dir = Path.home() / ".mcp-xdr"
 xdr_dir.mkdir(parents=True, exist_ok=True)
+
+_logs_queries_dir = xdr_dir / "logs" / "queries"
+
+
+def _append_query_log(tool_name: str, query_or_args: str, result_text: str, lang: str = "kql") -> None:
+    """Append one entry to today's daily query log at ~/.mcp-xdr/logs/queries/YYYY-MM-DD.md.
+
+    Result lines are indented 4 spaces so they render as a code block in Markdown viewers.
+    Logging is best-effort: exceptions are swallowed so a log failure never breaks a query.
+    """
+    try:
+        _logs_queries_dir.mkdir(parents=True, exist_ok=True)
+        today = datetime.date.today().isoformat()
+        log_file = _logs_queries_dir / f"{today}.md"
+        ts = datetime.datetime.now().strftime("%H:%M:%S")
+        indented = "\n".join("    " + line for line in result_text.splitlines())
+        entry = f"## {ts} {tool_name}\n\n```{lang}\n{query_or_args}\n```\n\n{indented}\n\n---\n"
+        with log_file.open("a", encoding="utf-8") as f:
+            f.write(entry)
+    except Exception:
+        pass  # logging must never break query execution
 
 
 #
@@ -293,12 +315,14 @@ async def run_hunting_query(query: str) -> list[TextContent]:
             "\t".join(_sanitise(str(row.get(n, ""))) for n in col_names)
             for row in results
         ]
-        return await _run_query(col_names, data_rows, "mcp-xdr-")
+        out = await _run_query(col_names, data_rows, "mcp-xdr-")
     except httpx.HTTPStatusError as e:
         error_detail = e.response.text if e.response else str(e)
-        return [TextContent(type="text", text=f"Query error: {error_detail}")]
+        out = [TextContent(type="text", text=f"Query error: {error_detail}")]
     except Exception as e:
-        return [TextContent(type="text", text=f"Query error: {e}")]
+        out = [TextContent(type="text", text=f"Query error: {e}")]
+    _append_query_log("run_hunting_query", query, out[0].text if out else "")
+    return out
 
 
 async def _run_query(
@@ -374,20 +398,27 @@ async def get_schema(table_name: str | None, source: str | None) -> list[TextCon
         if source is not None:
             source = source.lower()
             if source not in ("defender", "sentinel"):
-                return [TextContent(type="text", text=f"Invalid source '{source}'. Use 'defender', 'sentinel', or omit.")]
+                out = [TextContent(type="text", text=f"Invalid source '{source}'. Use 'defender', 'sentinel', or omit.")]
+                _append_query_log("get_schema", f"table_name={table_name!r} source={source!r}", out[0].text, lang="text")
+                return out
         use_defender = source in (None, "defender")
         use_sentinel = (source in (None, "sentinel")) and bool(_sentinel_workspace_id)
         if source == "sentinel" and not _sentinel_workspace_id:
-            return [TextContent(type="text", text="Error: source='sentinel' but SENTINEL_WORKSPACE_ID is not configured.")]
+            out = [TextContent(type="text", text="Error: source='sentinel' but SENTINEL_WORKSPACE_ID is not configured.")]
+            _append_query_log("get_schema", f"table_name={table_name!r} source={source!r}", out[0].text, lang="text")
+            return out
         if table_name:
-            return await _get_schema_for_table(table_name, use_defender, use_sentinel)
+            out = await _get_schema_for_table(table_name, use_defender, use_sentinel)
         else:
-            return await _get_schema_listing(use_defender, use_sentinel)
+            out = await _get_schema_listing(use_defender, use_sentinel)
     except httpx.HTTPStatusError as e:
         error_detail = e.response.text if e.response else str(e)
-        return [TextContent(type="text", text=f"Schema error: {error_detail}")]
+        out = [TextContent(type="text", text=f"Schema error: {error_detail}")]
     except Exception as e:
-        return [TextContent(type="text", text=f"Schema error: {e}")]
+        out = [TextContent(type="text", text=f"Schema error: {e}")]
+    args_label = f"table_name={table_name!r} source={source!r}" if table_name else "(listing all tables)"
+    _append_query_log("get_schema", args_label, out[0].text if out else "", lang="text")
+    return out
 
 
 async def _get_schema_listing(use_defender: bool, use_sentinel: bool) -> list[TextContent]:
@@ -599,12 +630,14 @@ async def run_sentinel_query(query: str) -> list[TextContent]:
     try:
         result = await run_sentinel_query_raw(query)
         col_names, data_rows = _sentinel_result_to_tsv(result)
-        return await _run_query(col_names, data_rows, "mcp-xdr-sentinel-")
+        out = await _run_query(col_names, data_rows, "mcp-xdr-sentinel-")
     except httpx.HTTPStatusError as e:
         error_detail = e.response.text if e.response else str(e)
-        return [TextContent(type="text", text=f"Query error: {error_detail}")]
+        out = [TextContent(type="text", text=f"Query error: {error_detail}")]
     except Exception as e:
-        return [TextContent(type="text", text=f"Query error: {e}")]
+        out = [TextContent(type="text", text=f"Query error: {e}")]
+    _append_query_log("run_sentinel_query", query, out[0].text if out else "")
+    return out
 
 
 

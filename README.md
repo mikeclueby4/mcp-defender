@@ -147,9 +147,22 @@ For certificate auth, also add `"AZURE_CLIENT_CERTIFICATE_PATH": "/path/to/combi
 | Tool | Description |
 |------|-------------|
 | `run_hunting_query` | Execute KQL queries against Defender Advanced Hunting (Microsoft Graph Security API). Returns TSV with a header row. Results over ~10 KB are truncated inline; the full result is written to a tmpfile whose path is reported in a `[MCP-XDR:OVERFLOW]` marker line. |
-| `get_hunting_schema` | Get available Defender Advanced Hunting tables and columns |
+| `get_schema` | Unified schema discovery. No args: lists all tables across Defender + Sentinel as TSV. With `table_name`: returns column schema and up to 3 sample rows. Optional `source` param (`"defender"` / `"sentinel"`) restricts to one source. |
 | `run_sentinel_query` | Execute KQL queries against a Log Analytics workspace (Sentinel). Same TSV/overflow output format. Only available when `SENTINEL_WORKSPACE_ID` is set. |
-| `get_sentinel_tables` | List all tables in the configured Log Analytics workspace. Only available when `SENTINEL_WORKSPACE_ID` is set. |
+
+## Query Log
+
+Every tool call is appended to a daily Markdown log at `~/.mcp-xdr/logs/queries/YYYY-MM-DD.md`. Each entry records the tool name, the query (or schema args), and exactly what the model received — truncated at the overflow boundary for large results. The format is human-readable in any Markdown viewer (result rows are indented 4 spaces, rendering as code blocks).
+
+```
+~/.mcp-xdr/
+└── logs/
+    └── queries/
+        ├── 2026-04-16.md
+        └── 2026-04-17.md
+```
+
+This is useful for reviewing what queries were run in a session, catching surprising results after the fact, and informing updates to the skill's reference documentation.
 
 ## Example Natural Language Queries
 
