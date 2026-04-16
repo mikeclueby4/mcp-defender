@@ -13,6 +13,7 @@
 
 # Project-specific excludes
 *.txt
+reports/
 
 # Python
 __pycache__/

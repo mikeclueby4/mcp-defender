@@ -36,3 +36,13 @@ Expand to filter by permission:
 ## `VerifiedPublisher` column
 
 `VerifiedPublisher` is a `dynamic` object. An empty object `{}` means the publisher is unverified — this is the common case for internal apps.
+
+## `OAuthAppUserConsentInfo` does not exist — it was never a real table
+
+`OAuthAppUserConsentInfo` **does not exist and never did** — it has zero official documentation, zero web references, and returns a semantic error in every tenant. Do not generate queries against it.
+
+`OAuthAppInfo` (released April 2025, currently in Preview) is the **only** OAuth-related Advanced Hunting table. It requires app governance to be enabled in Microsoft Defender for Cloud Apps.
+
+Per-user consent data is not available in Advanced Hunting at all. To identify which users consented to a specific app:
+- Use `SigninLogs` filtered by `AppId` — each successful sign-in represents a user with an active OAuth session
+- Use the Microsoft Defender for Cloud Apps portal directly (OAuth apps page shows per-user consent)
