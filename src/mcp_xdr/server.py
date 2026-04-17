@@ -15,6 +15,7 @@ Set SENTINEL_WORKSPACE_ID to enable Sentinel tools.
 import asyncio
 import datetime
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, cast
@@ -282,6 +283,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 async def run_hunting_query_raw(query: str) -> dict[str, Any]:
     """Execute a query against the Microsoft Graph Security Advanced Hunting API."""
     token = await get_access_token()
+    query = _normalize_query(query)
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -302,6 +304,17 @@ async def run_hunting_query_raw(query: str) -> dict[str, Any]:
 def _sanitise(value: str) -> str:
     """Replace tabs so values never break TSV structure."""
     return value.replace("\t", " ")
+
+
+def _normalize_query(query: str) -> str:
+    """Normalize a KQL query before sending to any API.
+
+    Replaces blank/whitespace-only lines with a comment line. The Defender portal
+    web UI rejects blank lines, and the Graph API engine has historically been
+    sensitive to them too. Log Analytics handles them fine either way. A '//'
+    comment is syntactically valid in both engines, so this is safe for all paths.
+    """
+    return re.sub(r"^[ \t]*$", "//", query, flags=re.MULTILINE)
 
 
 async def run_hunting_query(query: str) -> list[TextContent]:
@@ -595,6 +608,7 @@ async def run_sentinel_query_raw(query: str) -> dict[str, Any]:
     if not _sentinel_workspace_id:
         raise ValueError("SENTINEL_WORKSPACE_ID is not set")
     token = await get_sentinel_access_token()
+    query = _normalize_query(query)
 
     async with httpx.AsyncClient() as client:
         response = await client.post(

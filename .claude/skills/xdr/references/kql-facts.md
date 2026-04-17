@@ -20,20 +20,25 @@ IPv4 addresses are increasingly logged in IPv6-mapped form: `::ffff:1.2.3.4`. A 
 // Example: 10.0.0.0/8 in IPv4 → ipv6_is_match(IP, "10.0.0.0", 104)
 | where ipv6_is_match(IPAddress, "10.0.0.0", 104)
 
-// Joining two tables on IP
-| join kind=inner (
-    OtherTable
-    | extend IPKey = IPAddress
-) on $left.SrcIP == $right.IPKey   // WRONG — use mv-expand + ipv6_is_match instead
-
-// Better join pattern:
+// Joining two tables on IP — normalize both sides with parse_ipv6() first,
+// then join on the canonical string. Works in both Defender and Sentinel.
 TableA
-| join kind=inner TableB on $left.SrcIP == $right.DstIP  // only safe if both came from same source
-// If unsure, normalize first:
-| extend NormalizedIP = iff(IPAddress startswith "::ffff:", substring(IPAddress, 7), IPAddress)
+| extend SrcKey = parse_ipv6(SrcIP)
+| join kind=inner (
+    TableB
+    | extend DstKey = parse_ipv6(DstIP)
+) on $left.SrcKey == $right.DstKey
+
+// parse_ipv6() expands any IPv4 or IPv6 input to a fully canonical form:
+//   "1.2.3.4"        → "0000:0000:0000:0000:0000:ffff:0102:0304"
+//   "::ffff:1.2.3.4" → "0000:0000:0000:0000:0000:ffff:0102:0304"  (same!)
+// So both representations of the same address produce the same key — safe to join on.
+
+// For equality checks in where clauses, ipv6_is_match() remains cleaner:
+| where ipv6_is_match(IPAddress, "1.2.3.4")
 ```
 
-When joining two tables on IPs where you can't guarantee format consistency, normalize both sides first or use `ipv6_is_match` in a post-join `where`.
+When joining two tables on IPs, always normalize both sides with `parse_ipv6()` first — it handles IPv4, IPv6, and IPv6-mapped IPv4 (`::ffff:x.x.x.x`) and collapses them to the same canonical string. `ipv6_compare(a, b) == 0` is an alternative equality test. For `where` filters, `ipv6_is_match()` is the most readable option.
 
 ---
 
@@ -49,26 +54,29 @@ These diverge from standard ADX/KQL and will silently produce parse errors or wr
 | extend Label = iff(IsBlocked, "Blocked", "Active")
 ```
 
-**`let` + `union`/`join` causes parse errors** — Defender KQL does not support `union` or `join` downstream of a `let` subquery. This catches people writing before/after comparisons with two `let` windows joined together:
+**`let` + `union`/`join` — works in both Defender and Sentinel** — `let` subqueries piped into `union` or `join` are fully supported (verified 2026-04 against both the Graph Security API and Log Analytics):
 ```kql
-// WRONG — parse error
+// Works fine in Defender
 let Baseline = TableA | where Timestamp between (ago(30d) .. ago(3d));
 let Recent   = TableA | where Timestamp > ago(3d);
-Baseline | join kind=inner Recent on AppId  // fails
-// also fails with: Baseline | union Recent
+Baseline | union Recent
+Baseline | join kind=inner Recent on AppId
 
-// RIGHT for before/after comparisons — use evaluate pivot() on a Period column:
+// Works fine in Sentinel
+let Baseline = TableA | where TimeGenerated between (ago(30d) .. ago(3d));
+let Recent   = TableA | where TimeGenerated > ago(3d);
+Baseline | union Recent
+```
+
+For before/after comparisons the `evaluate pivot()` pattern is often *cleaner* than a join, but it is not required:
+```kql
+// Alternative pivot approach (cleaner for ratio analysis):
 TableA
 | where Timestamp > ago(30d)
 | extend Period = iff(Timestamp > ago(3d), "Recent", "Baseline")
 | summarize Events=count() by AppId, Period
 | evaluate pivot(Period, sum(Events))
 | extend SpikeRatio = iff(todouble(Baseline) > 0, round(todouble(Recent) / todouble(Baseline), 2), todouble(999))
-
-// RIGHT for multi-table queries — run as separate queries
-TableA | where …
-// -- and separately --
-TableB | where …
 ```
 
 **Double-serialized dynamic columns** — some dynamic columns (e.g. `NodeProperties`, `AgentToolsDetails`) are stored as JSON-encoded strings, not native dynamic objects. Direct property access returns null; wrap with `tostring()` first:
@@ -106,9 +114,9 @@ EmailEvents
 
 ### General KQL hygiene
 
-**Time filter** — always include one; default to last 3 days unless the user specifies otherwise:
+**Time filter** — always include one; default to last 7 days unless the user specifies otherwise:
 ```kql
-| where Timestamp > ago(3d)
+| where Timestamp > ago(7d)
 ```
 
 **Limit columns** — use `project` to return only what's needed; Defender tables are wide and raw rows waste context:

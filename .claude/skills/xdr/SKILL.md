@@ -92,6 +92,7 @@ When a user describes a problem rather than naming a table, read the relevant pl
 |---|---|
 | `…/investigations/connectivity.md` | User reports `ERR_CONNECTION_TIMED_OUT`, site unreachable, intermittent web access, "works from one location but not another", browser connectivity failures on a specific device |
 | `…/investigations/external-ti-apis.md` | Checking whether an IP, domain, or URL appears in external reputation/TI feeds; "is this IP known bad?"; "what ASN/country is this?"; "is this domain flagged?"; quick spot-check without querying Defender/Sentinel — covers keyless Tier 1 services and keyed Tier 2 services (AbuseIPDB, VirusTotal, GreyNoise, AlienVault OTX, IPQualityScore, IPinfo) |
+| `…/investigations/mcp-servers.md` | Inventorying AI/MCP plugins in use across endpoints; "what MCP servers are people using?"; "is anyone using [tool] with Claude?"; detecting AI tool integrations via `DeviceProcessEvents` and `DeviceNetworkEvents`. **Four strategies required**: server process command line (Strategy 1) + tool-result filename patterns (Strategy 2, catches servers like mcp-atlassian) + long-lived child process longevity heuristic (Strategy 3, catches servers with no "mcp" in binary name at all, e.g. `uv.exe` running `mcp-server-git`, opaque binaries like `pet.exe server`) + outbound network to remote MCP endpoints (Strategy 4, catches HTTP/SSE remote servers like `mcp-proxy.anthropic.com`, `api.mcp.github.com`, `mcp.svc.cloud.microsoft` that leave zero local process footprint) |
 
 ---
 
