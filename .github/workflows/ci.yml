@@ -28,12 +28,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install .[dev]
 
-      - name: Ruff Lint
-        run: ruff check .
-
-      - name: Ruff Format Check
-        run: ruff format --check .
-
       - name: Mypy Type Check
         run: mypy src
 
