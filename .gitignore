@@ -65,3 +65,5 @@ htmlcov/
 # ruff
 .ruff_cache/
 
+.claude/skills/testtest
+.claude/hooks/validate-claude-blob.py

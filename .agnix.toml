@@ -1,0 +1,6 @@
+
+target = "claude-code"
+strict = false
+disabled_rules = [
+    "VER-001"
+]

@@ -114,7 +114,7 @@ EmailEvents
 
 ### General KQL hygiene
 
-**Time filter** — always include one; default to last 7 days unless the user specifies otherwise:
+**Time filter** — always include one; default to last 7 days.
 ```kql
 | where Timestamp > ago(7d)
 ```
@@ -130,10 +130,67 @@ EmailEvents
 | sort by Count desc
 ```
 
-**Large result sets** — if a query returns more rows than fit comfortably in context, spawn a subagent to ingest and summarize the output. Always use `model: "haiku"` for these — the task is pure reading/summarization, not reasoning, and Haiku is faster and cheaper for it. Choose `effort:` appropriate for the task, don't let it inherit yours.
+**Large result sets** — if a query returns more rows than fit comfortably in context, spawn a subagent to ingest and summarize the output. Always use `model="haiku"` for these — the task is pure reading/summarization, not reasoning, and Haiku is faster and cheaper for it. Choose `effort="low|medium"` appropriate for the task, don't let it inherit yours.
+```
+Agent(model="haiku", prompt="Read the TSV at <path>. Summarize: distinct values in
+col A (entity names), top 10 by count in col B, flag any values that look unusual
+or non-standard. Output a markdown table.")
+```
 
 **Dynamic column access** — use `tostring()`, `toint()`, `parse_json()`, and `bag_keys()` to work with dynamic columns safely:
 ```kql
 | extend parsed = parse_json(AdditionalFields)
 | extend ProcessName = tostring(parsed.ProcessName)
+```
+
+---
+
+### Query economy — protect your context budget
+
+**1. Summarize on-server first**
+
+Covered in [General KQL hygiene](#general-kql-hygiene) above. Never pull raw rows for exploratory work — always end with e.g. `summarize … by <key> | sort by Count desc`. If you need individual events, add a `where` filter to narrow first, *then* remove the summarize.
+
+**2. Use `| sample N` only for big-picture exploration, not inventory**
+
+`| sample N` draws a quasi-random subset — useful for checking whether a pattern is worth pursuing, and avoids temporal/sorted clustering bias with other row limits.
+
+**3. Overflow files — use Bash tooling, not context**
+
+When a query hits the `[MCP-XDR:OVERFLOW]` sentinel, the full result is in a tmpfile at the path shown. Do **not** default to reading the whole file into main agent context window. Instead, grep/extract what you need:
+
+```bash
+# Count distinct values in column 1 from an overflow file
+cut -f1 <path>.tsv | sort | uniq -c | sort -rn | head -30
+
+# Search for a specific value in an overflow result
+rg -i "keyword" <path>.tsv | head -20
+
+# Extract specific columns (e.g. 1 and 3) with optional filter
+awk -F'\t' 'NR==1 || $1 ~ /pattern/ {print $1, $3}' <path>.tsv
+```
+
+For more complex analysis, write a reusable named Python script in `.claude/skills/xdr/references/scripts/`.
+
+**4. Delegate large summarization to a Haiku subagent**
+
+Covered in [General KQL hygiene](#general-kql-hygiene) above.
+
+**5. Prefer one wide summarize over multiple narrow queries**
+
+Run one broad query that captures all variants ranked by volume, then drill into specific findings with `where` filters. Resist the urge to issue a separate query per hypothesis — each query costs context and round-trip time.
+
+```kql
+// Wide first — all variants, ranked
+TableName
+| where Timestamp > ago(30d)
+| summarize Count=count(), Devices=dcount(DeviceName) by Kind
+| sort by Count desc
+
+// Then narrow — only after identifying a finding worth drilling
+TableName
+| where Timestamp > ago(30d)
+| where Kind == "specific-value-from-above"
+| project Timestamp, DeviceName, AccountName, AdditionalFields
+| sort by Timestamp desc
 ```
