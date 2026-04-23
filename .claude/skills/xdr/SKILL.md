@@ -2,22 +2,22 @@
 name: xdr
 description: >
   Expert guidance for writing and executing KQL queries against Microsoft Defender
-  Advanced Hunting via the mcp-xdr MCP server. Use this skill whenever the user
+  Advanced Hunting via the mcp-xdr MCP server. Use when  the user
   asks about security events, threat hunting, investigating alerts, querying Defender
   tables, or anything involving KQL / Advanced Hunting — even if they don't say
   "xdr" explicitly. Also invoke for questions like "show me devices that…",
-  "find sign-ins from…", "hunt for…", or "what happened to <entity>".
-allowed-tools:
-  - mcp__*__get_schema
-  - mcp__*__run_hunting_query
-  - mcp__*__run_sentinel_query
-  - mcp__*__microsoft_docs_fetch
-  - mcp__*__microsoft_docs_search
-  - mcp__*__web_read              # web-utility-belt uses a tool-less subagent to filter nasties
-  - mcp__*__web_grounded_answer
-  - WebFetch(domain:raw.githubusercontent.com, path:raw/MicrosoftDocs/**)  # direct fetch of markdown docs as last resort
-  - Read({baseDir}/references/**)
-  - Write({baseDir}/references/**)
+  "find sign-ins from…", "hunt for…", or "what happened to foo-bar".
+allowed-tools: >-
+  mcp__*__get_schema
+  mcp__*__run_hunting_query
+  mcp__*__run_sentinel_query
+  mcp__*__microsoft_docs_fetch
+  mcp__*__microsoft_docs_search
+  mcp__*__web_read
+  mcp__*__web_grounded_answer
+  WebFetch(domain:raw.githubusercontent.com)
+  Read({baseDir}/references/**)
+  Write({baseDir}/references/**)
 ---
 
 # Defender Advanced Hunting & Sentinel — KQL Guidance
@@ -34,6 +34,7 @@ You have access to these MCP tools (some conditional on server config):
 | Data you need | Use |
 |---|---|
 | Device*, Email*, Identity*, CloudApp*, AI* (XDR tables) | `run_hunting_query` |
+| EntraIdSignInEvents, EntraIdSpnSignInEvents (GA Entra XDR tables) | `run_hunting_query` |
 | SecurityAlert, SecurityIncident, AAD*, AuditLogs, SigninLogs, SecurityEvent | `run_sentinel_query` |
 | CommonSecurityLog, Syslog, custom tables, Auxiliary/Basic logs | `run_sentinel_query` |
 | Workspace **not** onboarded to the Defender portal | `run_sentinel_query` |
@@ -91,7 +92,8 @@ When a user describes a problem rather than naming a table, read the relevant pl
 | Playbook | When to use |
 |---|---|
 | `…/investigations/connectivity.md` | User reports `ERR_CONNECTION_TIMED_OUT`, site unreachable, intermittent web access, "works from one location but not another", browser connectivity failures on a specific device |
-| `…/investigations/external-ti-apis.md` | Checking whether an IP, domain, or URL appears in external reputation/TI feeds; "is this IP known bad?"; "what ASN/country is this?"; "is this domain flagged?"; quick spot-check without querying Defender/Sentinel — covers keyless Tier 1 services and keyed Tier 2 services (AbuseIPDB, VirusTotal, GreyNoise, AlienVault OTX, IPQualityScore, IPinfo) |
+| `…/investigations/external-ti-apis.md` | Checking whether an IP, domain, or URL appears in external reputation/TI feeds; "is this IP known bad?"; "what ASN/country is this?"; "is this domain flagged?"; quick spot-check without querying Defender/Sentinel — covers keyless Tier 1 services and keyed Tier 2 services |
+| `…/investigations/mcp-servers.md` | Inventorying AI/MCP plugins in use across endpoints; "what MCP servers are people using?"; "is anyone using foo-tool with Claude?"; detecting AI tool integrations via `DeviceProcessEvents` and `DeviceNetworkEvents`. |
 
 ---
 
@@ -101,24 +103,30 @@ Notable tables that may need extra care:
 
 | Table | Notes |
 |-------|-------|
-| `AIAgentsInfo` | Copilot Studio / AI agent inventory. `AgentToolsDetails`, `KnowledgeDetails`, `ConnectedAgentsSchemaNames` are dynamic — sample first. Data is sparse/snapshot-style — `ago(3d)` typically returns 0 rows; use `ago(90d)` or omit the time filter. |
+| `AIAgentsInfo` | Copilot Studio / AI agent inventory. `AgentToolsDetails`, `KnowledgeDetails`, `ConnectedAgentsSchemaNames` are dynamic — sample first. Data is sparse/snapshot-style — `ago(3d)` typically returns 0 rows; use `ago(90d)` or omit the time filter. | TODO: verify good timespan
 | `DeviceNetworkEvents` | See `…/tables/DeviceNetworkEvents.md`. Key gotchas: `Protocol` has both `"Tcp"` and `"TcpV4"` — use `startswith "Tcp"` not `== "Tcp"`; `ConnectionSuccess` ≠ allowed (network protection blocks post-handshake); `AdditionalFields` is double-serialized JSON string; inbound rows have no initiating process context. `ReportId` non-uniqueness: see "ReportId uniqueness" section above. |
-| `EntraIdSignInEvents` | GA replacement for `AADSignInEventsBeta`. Has `GatewayJA4` (TLS fingerprint) and `IsSignInThroughGlobalSecureAccess` (populated when Global Secure Access is deployed). Schema uses `Timestamp` not `TimeGenerated`; columns like `AccountUpn`/`EntraIdDeviceId`. If empty, fall back to `SigninLogs` + `AADNonInteractiveUserSignInLogs` via `run_sentinel_query`. |
+| `EntraIdSignInEvents` | See `…/tables/EntraIdSignInEvents.md`. GA replacement for `AADSignInEventsBeta`. Uses `Timestamp` not `TimeGenerated`. Key column naming traps: `Application` (not `AppName`/`AppDisplayName`), `Country` (not `CountryCode`), `AccountUpn` (not `UserPrincipalName`), `EntraIdDeviceId` (not `DeviceId`). Geo is flat (no `parse_json` needed). Has `GatewayJA4`, `IsSignInThroughGlobalSecureAccess`, `UniqueTokenId`. |
+| `SigninLogs` / `AADNonInteractiveUserSignInLogs` | See `…/tables/SigninLogs.md`. Key gotcha: `LocationDetails` and `DeviceDetail` are `dynamic` in `SigninLogs` but `string` in `AADNonInteractiveUserSignInLogs` — after `union` use `tostring(parse_json(tostring(col)).field)` to avoid `SEM0100`. |
 | `ExposureGraphNodes/Edges` | Security Exposure Management graph. `NodeProperties` keys vary by `NodeLabel` — the official docs don't enumerate them; always live-sample with `take 3` first. |
 | `GraphAPIAuditEvents` | MS Graph API audit log. `RequestUri` + `Scopes` + `TargetWorkload` are the key hunting columns. See `…/tables/GraphAPIAuditEvents.md` for column type gotchas (`RequestDuration`, `RequestUri` size). |
 | `OAuthAppInfo` | OAuth app inventory. See `…/tables/OAuthAppInfo.md` — key field is `OAuthAppId`; table is snapshot-based (one row per app per day). |
 | `MessageEvents` | Teams message security events (not email — that's `EmailEvents`). |
 | `CloudStorageAggregatedEvents` | Aggregated Azure storage access; note `DataAggregationStartTime/EndTime` rather than a single `Timestamp`. |
 | `AADSignInEventsBeta` | Deprecated Dec 9, 2025 — replaced by `EntraIdSignInEvents`. Do not use for new queries. |
+| `AADSpnSignInEventsBeta` | Deprecated — replaced by `EntraIdSpnSignInEvents`. Missing `GatewayJA4`, `SessionId`, `UniqueTokenId` compared to the GA table. Do not use for new queries. |
+| `EntraIdSpnSignInEvents` | GA replacement for `AADSpnSignInEventsBeta`. Defender-only (`run_hunting_query`). Covers service principal + managed identity sign-ins. Has `GatewayJA4`, `SessionId`, `UniqueTokenId`. Key columns: `ServicePrincipalName`, `ServicePrincipalId`, `IsManagedIdentity`, `IsConfidentialClient`, `ApplicationId`, `ResourceDisplayName`. |
 | `NetworkAccessTraffic` | Global Secure Access (Entra Internet/Private Access) traffic log. Uses `TimeGenerated` not `Timestamp`. Rich columns: `Action`, `PolicyName`, `RuleName`, `DestinationFqdn`, `DestinationUrl`, `DestinationWebCategories`, `ThreatType`, `ConnectionStatus`, `UserPrincipalName`. Empty if GSA is not deployed or logs are not flowing. |
 
 ## Entra ID / AAD sign-in table family
 
 Two completely separate families with overlapping data — do not confuse them:
 
+**Sign-in log UA gotcha — `Edge/18.26100` is NOT a threat indicator.** The full UA `Mozilla/5.0 … WebView/3.0 … Edge/18.26100` is the legacy EdgeHTML WebView used by Microsoft's own `AAD.BrokerPlugin` for Office app authentication on Windows 10 machines that haven't migrated to WebView2. It appears routinely in legitimate `AADNonInteractiveUserSignInLogs` rows and carries through into token-replay sessions unchanged (the replayed token inherits the original UA). Do not treat it as an AiTM fingerprint.
+
 **Defender Advanced Hunting** (`run_hunting_query`) — XDR-native, `Timestamp`, flat schema:
-- `EntraIdSignInEvents` — replaces `AADSignInEventsBeta` (Dec 2025); covers both interactive and non-interactive in one table
-- ⚠️ **May return empty in some tenants** (silent RBAC/routing filter) — use Sentinel tables below if so
+- `EntraIdSignInEvents` — GA; replaces `AADSignInEventsBeta` (Dec 2025); covers both interactive and non-interactive user sign-ins in one table. Has `GatewayJA4`, `IsSignInThroughGlobalSecureAccess`, `UniqueTokenId`.
+- `EntraIdSpnSignInEvents` — GA; replaces `AADSpnSignInEventsBeta`; service principal and managed identity sign-ins. Has `IsManagedIdentity`, `IsConfidentialClient`, `GatewayJA4`, `UniqueTokenId`.
+- ⚠️ **Both may return empty in some tenants** (silent RBAC/routing filter) — use Sentinel tables below if so
 
 **Sentinel / Log Analytics** (`run_sentinel_query`) — Azure Monitor diagnostic tables, `TimeGenerated`, richer schema, confirmed live as of 2026-04:
 
@@ -130,7 +138,7 @@ Two completely separate families with overlapping data — do not confuse them:
 | `AADManagedIdentitySignInLogs` | Managed identity sign-ins | Live (minutes) |
 | `AADProvisioningLogs` | Provisioning events | Live (hourly) |
 | `AADRiskyUsers` | Identity Protection risky user state | Live (hours) |
-| `AADUserRiskEvents` | Identity Protection risk detections | ⚠️ Last seen 2026-03-20 — may be stale or quiet |
+| `AADUserRiskEvents` | Identity Protection risk detections | |
 | `AuditLogs` | Entra directory audit (user/group/app changes) | Live (minutes) |
 
 For comprehensive interactive + non-interactive sign-in coverage via Sentinel:
