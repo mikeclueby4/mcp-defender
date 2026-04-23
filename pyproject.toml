@@ -61,7 +61,6 @@ Issues = "https://github.com/mikeclueby4/mcp-xdr/issues"
 dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
-    "ruff>=0.15.10",
     "mypy>=1.20.1",
     "bandit>=1.7.0",
 ]
@@ -75,13 +74,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_xdr"]
-
-[tool.ruff]
-target-version = "py311"
-line-length = 100
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
 
 [tool.mypy]
 python_version = "3.11"
